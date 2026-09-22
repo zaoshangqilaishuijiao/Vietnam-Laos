@@ -4,7 +4,8 @@ const PUBLIC_PLACEHOLDERS = Object.freeze({
   baiduAk: "__BAIDU_MAP_BROWSER_AK__",
   googleKey: "__GOOGLE_MAPS_BROWSER_KEY__",
   supabaseProjectUrl: "https://__SUPABASE_PROJECT_REF__.supabase.co",
-  supabasePublishableKey: "__SUPABASE_PUBLISHABLE_KEY__"
+  supabasePublishableKey: "__SUPABASE_PUBLISHABLE_KEY__",
+  buildSha: "__GUIDE_BUILD_SHA__"
 });
 
 function classifySupabaseKey(value) {
@@ -21,4 +22,19 @@ function classifySupabaseKey(value) {
   return "invalid";
 }
 
-module.exports = { PUBLIC_PLACEHOLDERS, classifySupabaseKey };
+// Shared by pre-commit inspection and CI. Exact placeholders are the only exceptions.
+function publicSourceViolations(source) {
+  const clean = Object.values(PUBLIC_PLACEHOLDERS).reduce((s, value) => s.split(value).join(""), String(source));
+  const hits = [];
+  if (/AIza[0-9A-Za-z_-]{20,}/.test(clean)) hits.push("真实 Google API Key");
+  if (/[?&]ak=[0-9A-Za-z_-]{16,}/i.test(clean) || /["'](?:ak|baiduAk)["']\s*:\s*["'][0-9A-Za-z_-]{16,}["']/i.test(clean)) hits.push("真实百度 AK");
+  if (/sb_(?:secret|publishable)_[0-9A-Za-z_-]+/.test(clean)) hits.push("Supabase key");
+  if (/https:\/\/[a-z0-9-]+\.supabase\.co\b/i.test(clean)) hits.push("Supabase Project URL");
+  for (const match of clean.matchAll(/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g)) {
+    if (classifySupabaseKey(match[0]) !== "invalid") hits.push("Supabase JWT");
+  }
+  return [...new Set(hits)];
+}
+
+const DEPLOYMENT_FILES = Object.freeze(["scripts/build-public-guide.js", "scripts/public-config.js"]);
+module.exports = { PUBLIC_PLACEHOLDERS, classifySupabaseKey, publicSourceViolations, DEPLOYMENT_FILES };

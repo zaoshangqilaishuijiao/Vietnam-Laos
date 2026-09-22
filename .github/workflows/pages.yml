@@ -34,7 +34,6 @@ jobs:
           for source in "${sources[@]}"; do
             node scripts/build-public-guide.js "$source" "_site/$(basename "$source")"
           done
-          [ ! -d images ] || cp -R images _site/images
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
