@@ -1,0 +1,28 @@
+<!-- 本模板中的日期、地点与求雨彩蛋占位符由 scripts/render-guide.js 在渲染时替换；注释内不得出现占位符原文，否则会被一并替换。 -->
+<section class="guide-weather-card" data-weather-card data-weather-start-date="__TRIP_START_DATE__" data-weather-end-date="__TRIP_END_DATE__" data-weather-days="7" data-rain-threshold="80">
+  <div class="guide-weather-card__head">
+    <div>
+      <h3>出发前 7 天：天气查询</h3>
+      <div class="guide-weather-status-row">
+        <span class="guide-weather-pill">7 天预报</span>
+        <span class="guide-weather-pill is-waiting" data-weather-data-kind>等待手动刷新</span>
+      </div>
+    </div>
+    <button type="button" data-weather-refresh>刷新天气</button>
+  </div>
+  <p class="guide-weather-status" data-weather-status aria-live="polite">点击刷新查看预报。</p>
+  <div class="guide-weather-grid" data-weather-grid></div>
+  <div class="guide-weather-footer">
+    <span data-weather-updated-at><strong>数据状态：</strong>等待手动刷新</span>
+    <span><strong>来源：</strong>Open‑Meteo</span>
+  </div>
+  <p class="guide-rain-easter-egg" data-rain-easter-egg hidden>如果下雨怎么办？<a href="#rain-prayer" data-rain-prayer-open>请点击</a></p>
+  <div class="guide-rain-prayer-modal" data-rain-prayer-modal hidden role="dialog" aria-modal="true" aria-label="求雨祈福">
+    <div class="guide-rain-prayer-panel">
+      <button class="guide-rain-prayer-close" data-rain-prayer-close type="button" hidden>关闭</button>
+      <iframe data-rain-prayer-frame sandbox="allow-scripts" title="求雨祈福"></iframe>
+    </div>
+  </div>
+  <script type="application/json" data-weather-locations>__WEATHER_LOCATIONS_JSON__</script>
+  <script type="application/json" data-rain-prayer-source>__RAIN_PRAYER_SOURCE__</script>
+</section>

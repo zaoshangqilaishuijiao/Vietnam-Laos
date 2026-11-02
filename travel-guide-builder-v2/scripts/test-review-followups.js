@@ -1,0 +1,92 @@
+#!/usr/bin/env node
+const assert=require('node:assert/strict'), fs=require('fs'), os=require('os'), path=require('path'), crypto=require('crypto');
+const {spawnSync}=require('child_process');
+const {JSDOM}=require('jsdom');
+const root=path.resolve(__dirname,'..'), temp=fs.mkdtempSync(path.join(os.tmpdir(),'guide-five-fixes-'));
+const run=(args,opts={})=>spawnSync(process.execPath,args,{cwd:root,encoding:'utf8',...opts});
+const env={...process.env,GIT_AUTHOR_NAME:'Fixture',GIT_COMMITTER_NAME:'Fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
+const gitAt=repo=>(...args)=>spawnSync('git',args,{cwd:repo,env,encoding:'utf8'});
+const ok=r=>{assert.equal(r.status,0,r.stderr+'\n'+r.stdout);return r.stdout;};
+const write=(file,content)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,content);};
+const commit=(git,message)=>ok(git('-c','commit.gpgsign=false','-c','core.hooksPath=/dev/null','commit','-m',message));
+const {scanOutgoingContents,collectOutgoingCommits}=require('./publish-checklist.js');
+// Actual local Git objects, including a removed intermediate configuration and repeated blobs.
+const repo=path.join(temp,'history');fs.mkdirSync(repo);const git=gitAt(repo);ok(git('init','-b','main'));
+write(path.join(repo,'guide.html'),'__GUIDE_BUILD_SHA__');ok(git('add','.'));commit(git,'base');
+ok(git('update-ref','refs/remotes/origin/main',ok(git('rev-parse','HEAD')).trim()));
+write(path.join(repo,'guide.html'),'sb_publishable_SYNTHETIC_FIXTURE');ok(git('add','.'));commit(git,'synthetic value');
+write(path.join(repo,'copy.html'),'sb_publishable_SYNTHETIC_FIXTURE');ok(git('add','.'));commit(git,'same blob');
+write(path.join(repo,'guide.html'),'__GUIDE_BUILD_SHA__');write(path.join(repo,'copy.html'),'__GUIDE_BUILD_SHA__');ok(git('add','.'));commit(git,'remove value');
+let reads=0;const counted=(...args)=>{if(args[0]==='cat-file')reads++;return git(...args);};
+const cache=new Map(), outgoing=collectOutgoingCommits(git,'origin','main');assert.equal(outgoing.length,3);
+const hits=scanOutgoingContents(counted,outgoing,cache);assert.ok(hits.length>=2);assert.equal(reads,2,'same blob read once');
+scanOutgoingContents(counted,outgoing,cache);assert.equal(reads,2,'reuse cache before final push');
+assert.ok(!hits.join('').includes('SYNTHETIC_FIXTURE'),'values never logged');
+ok(git('update-ref','refs/remotes/origin/main',ok(git('rev-parse','HEAD')).trim()));assert.deepEqual(collectOutgoingCommits(git,'origin','main'),[]);
+assert.deepEqual(scanOutgoingContents(git,[]),[]);
+// Merge history and filenames with whitespace must remain parsable.
+ok(git('checkout','-b','side'));write(path.join(repo,'space name.txt'),'sb_publishable_SYNTHETIC_SIDE');ok(git('add','.'));commit(git,'side');
+ok(git('checkout','main'));write(path.join(repo,'main.txt'),'clean');ok(git('add','.'));commit(git,'main');ok(git('-c','commit.gpgsign=false','-c','core.hooksPath=/dev/null','merge','--no-ff','side','-m','merge'));
+assert.ok(scanOutgoingContents(git,collectOutgoingCommits(git,'origin','main')).some(v=>v.includes('space name.txt')));
+// Note identity is shared by JSON/HTML; tokens and alternate paths never increase the count.
+const {xiaohongshuIdentity}=require('./xiaohongshu-identity.js');
+assert.equal(xiaohongshuIdentity('https://www.xiaohongshu.com/explore/abc?x=1#part'),xiaohongshuIdentity('https://www.xiaohongshu.com/search_result/abc?x=2'));
+assert.equal(xiaohongshuIdentity('https://xhslink.com/abc'),null);
+const fixture=path.join(temp,'trip-data.json');ok(run(['scripts/test-data-pipeline.js','--write-content-fixture='+fixture]));
+const original=JSON.parse(fs.readFileSync(fixture)), data=structuredClone(original);
+const {validateTripData}=require('./validate-trip-data.js');assert.equal(validateTripData(data,{stage:'content'}).valid,true);
+data.sources.forEach((s,i)=>s.url=`https://www.xiaohongshu.com/${i%2?'explore':'search_result'}/same-note?xsec_token=${i}`);
+assert.ok(validateTripData(data,{stage:'content'}).failures.some(s=>s.includes('笔记 ID')));
+const brief={...data,stage:'brief',requirements:{mustVisit:[],avoid:[],preferences:[],constraints:[],assumptions:[],openQuestions:[]},researchPlan:{xiaohongshuTarget:10,arrivalDepartureTarget:0,officialTopics:[]},researchSources:data.sources,confirmation:{status:'skipped',note:'fixture'}};
+assert.ok(validateTripData(brief,{stage:'brief'}).failures.some(s=>s.includes('笔记 ID')));
+// Simulate page kept open overnight, trip start/end, and controller cleanup.
+const dom=new JSDOM('<div data-guide-floating-tools><div data-guide-floating-actions><button data-floating-action="today" hidden>今天</button><button>搜索</button></div><button data-guide-floating-toggle><span data-guide-floating-toggle-icon></span></button></div><div data-day-panel="1" data-itinerary-date="2026-09-22"></div><div data-day-panel="2" data-itinerary-date="2026-09-23" hidden></div>',{runScripts:'outside-only',url:'https://local.test'});
+let date='2026-09-21';dom.window.Date=class extends dom.window.Date {toLocaleDateString(){return date;}};
+dom.window.eval(fs.readFileSync(path.join(root,'assets/travel-guide-interactions.js'),'utf8'));let api=dom.window.TravelGuideInteractions.initFloatingActions();const button=dom.window.document.querySelector('[data-floating-action="today"]');assert.equal(button.hidden,true);
+date='2026-09-22';dom.window.dispatchEvent(new dom.window.Event('pageshow'));assert.equal(button.hidden,false);assert.equal(button.dataset.dayJump,'1');
+date='2026-09-23';dom.window.document.dispatchEvent(new dom.window.Event('visibilitychange'));assert.equal(button.dataset.dayJump,'2');assert.equal(dom.window.document.querySelector('[data-day-panel="2"]').hidden,true,'refresh must not navigate');
+date='2026-09-24';api.setOpen(true);assert.equal(button.hidden,true);assert.equal(button.hasAttribute('data-day-jump'),false);
+api.destroy();api=dom.window.TravelGuideInteractions.initFloatingActions();date='2026-09-23';api.setOpen(true);assert.equal(button.dataset.dayJump,'2');api.destroy();dom.window.close();
+// End-to-end publish scope with real local Git, fake fetch/push only. No external calls.
+const pub=path.join(temp,'publish');fs.mkdirSync(pub);const pg=gitAt(pub);ok(pg('init','-b','main'));ok(pg('config','--local','core.hooksPath','.githooks'));ok(pg('config','--local','travelGuide.forbiddenEmailDomain','internal.invalid'));
+for(const file of require('./public-config.js').DEPLOYMENT_FILES)write(path.join(pub,file),fs.readFileSync(path.join(root,file)));
+write(path.join(pub,'.github/workflows/pages.yml'),fs.readFileSync(path.join(root,'assets/github-pages-deploy.yml')));
+const contentHash = crypto.createHash('sha256').update('synthetic-content').digest('hex');
+const page=name=>`<meta name="guide-content-sha256" content="${contentHash}"><meta name="guide-build" content="__GUIDE_BUILD_SHA__"><img src="${name}.png"><img src="shared.png">`;
+for(const name of ['a','b']){write(path.join(pub,name+'.html'),page(name));write(path.join(pub,name+'.png'),'image');}write(path.join(pub,'shared.png'),'shared');ok(pg('add','.'));commit(pg,'base pages');ok(pg('update-ref','refs/remotes/origin/main',ok(pg('rev-parse','HEAD')).trim()));
+const {REQUIRED_CHECKS,sha256,assetDigest}=require('./qa-evidence.js');
+const report=name=>{const file=path.join(pub,name+'.html'), hash=sha256(file), dataPath=path.join(temp,name+'-proof.json');write(dataPath,'{}');write(path.join(pub,name+'.validation.json'),JSON.stringify({output:name+'.html',contentContinuity:{status:'enforced',inputPath:dataPath,inputSha256:sha256(dataPath),inputContentSha256:contentHash,baselinePath:dataPath,baselineDataSha256:sha256(dataPath),baselineContentSha256:contentHash,baselineHtmlSha256:crypto.createHash('sha256').update(ok(pg('show','HEAD:'+name+'.html'))).digest('hex'),allowPaths:['meta']},htmlValidation:{valid:true,htmlSha256:hash},browserValidation:{status:'passed',htmlSha256:hash,assetSha256:assetDigest(file),checks:REQUIRED_CHECKS.map(name=>({name,status:'passed',evidence:'synthetic scope assertion only'}))}}));};
+const bin=path.join(temp,'bin'), log=path.join(temp,'remote-calls');fs.mkdirSync(bin);const realGit=spawnSync('which',['git'],{encoding:'utf8'}).stdout.trim();
+write(path.join(bin,'git'),`#!${process.execPath}\nconst fs=require('fs'),{spawnSync}=require('child_process');const a=process.argv.slice(2);if(['push','fetch'].includes(a[0])){fs.appendFileSync(${JSON.stringify(log)},a[0]+'\\n');process.exit(0);}const r=spawnSync(${JSON.stringify(realGit)},a,{stdio:'inherit'});process.exit(r.status??1);`);fs.chmodSync(path.join(bin,'git'),0o755);
+const publish=(args=[])=>run(['scripts/publish-checklist.js',pub,'--repo='+pub,...args],{env:{...env,PATH:bin+path.delimiter+process.env.PATH}});
+write(path.join(pub,'a.html'),page('a')+'<!-- edited A -->');write(path.join(pub,'b.html'),page('b')+'<!-- unrelated B -->');report('a');report('b');
+assert.notEqual(publish(['--execute']).status,0,'multiple pages require explicit target');
+const result=publish(['--page=a.html','--execute']);ok(result);assert.match(result.stdout,/b.html 有未提交/);assert.equal(ok(pg('show','HEAD:b.html')),page('b'));assert.match(ok(pg('show','HEAD:a.html')),/edited A/);assert.match(fs.readFileSync(log,'utf8'),/push/);
+ok(pg('update-ref','refs/remotes/origin/main',ok(pg('rev-parse','HEAD')).trim()));
+write(path.join(pub,'shared.png'),'shared changed');report('a');assert.notEqual(publish(['--page=a.html','--execute']).status,0,'dirty other page cannot silently accept shared asset update');
+write(path.join(pub,'b.html'),page('b'));report('b');ok(publish(['--page=a.html','--execute']));
+ok(pg('update-ref','refs/remotes/origin/main',ok(pg('rev-parse','HEAD')).trim()));
+write(path.join(pub,'private-notes.md'),'synthetic ordinary text');ok(pg('add','--','private-notes.md'));commit(pg,'out of scope note');
+// Deleting it later does not remove the scope violation from outgoing history.
+ok(pg('rm','--','private-notes.md'));commit(pg,'remove synthetic note');report('a');
+const pushLogBefore=fs.readFileSync(log,'utf8').split('\n').filter(value=>value==='push').length;
+const blocked=publish(['--page=a.html','--execute']);assert.notEqual(blocked.status,0);assert.match(blocked.stderr,/白名单外.*private-notes.md/);
+assert.equal(fs.readFileSync(log,'utf8').split('\n').filter(value=>value==='push').length,pushLogBefore,'no push for out-of-scope history');
+// Failed upgrades never change tracked outputs: preparation, missing input, or partial commit.
+const versionParts=require('../package.json').version.split('.').map(Number);versionParts[2]++;const nextVersion=versionParts.join('.');
+const outputs=['package.json','package-lock.json','scripts/shared-constants.js','SKILL.md','agents/openai.yaml','references/skill-rules.md','references/capability-and-versioning.md','assets/travel-guide-interactions.js','assets/page-template.lock.json'];
+const snapshot=dir=>outputs.map(f=>crypto.createHash('sha256').update(fs.readFileSync(path.join(dir,f))).digest('hex'));
+const isolated=path.join(temp,'upgrade');fs.mkdirSync(isolated);
+for(const name of ['assets','scripts','references','.githooks','supabase','agents','package.json','package-lock.json','SKILL.md'])fs.cpSync(path.join(root,name),path.join(isolated,name),{recursive:true});
+const initial=snapshot(isolated), combine=path.join(isolated,'scripts/combine-interactions-modules.js'), originalCombine=fs.readFileSync(combine);
+write(combine,'process.exit(1);');assert.notEqual(run(['scripts/upgrade-skill.js','--version='+nextVersion],{cwd:isolated}).status,0);assert.deepEqual(snapshot(isolated),initial);write(combine,originalCombine);
+fs.renameSync(path.join(isolated,'assets/modules/01-core-utilities.js'),path.join(isolated,'assets/modules/01-core-utilities.backup'));
+assert.notEqual(run(['scripts/upgrade-skill.js','--version='+nextVersion],{cwd:isolated}).status,0);assert.deepEqual(snapshot(isolated),initial);
+fs.renameSync(path.join(isolated,'assets/modules/01-core-utilities.backup'),path.join(isolated,'assets/modules/01-core-utilities.js'));
+const preload=path.join(temp,'write-failure.cjs');write(preload,`const fs=require('fs');const rename=fs.renameSync;let n=0;fs.renameSync=function(a,b){if(String(a).includes('.upgrade-')&&++n===3)throw Error('synthetic write failure');return rename.call(this,a,b);};`);
+const failure=run(['--require',preload,'scripts/upgrade-skill.js','--version='+nextVersion],{cwd:isolated});assert.notEqual(failure.status,0);assert.match(failure.stderr,/已恢复原文件/);assert.deepEqual(snapshot(isolated),initial);
+write(preload,fs.readFileSync(preload,'utf8').replace('++n===3','++n===6'));
+const assetFailure=run(['--require',preload,'scripts/upgrade-skill.js','--version='+nextVersion],{cwd:isolated});assert.notEqual(assetFailure.status,0);assert.deepEqual(snapshot(isolated),initial);assert.equal(fs.readdirSync(path.join(isolated,'assets')).some(f=>f.includes('.upgrade-')),false);
+ok(run(['scripts/upgrade-skill.js','--version='+nextVersion],{cwd:isolated}));assert.equal(JSON.parse(fs.readFileSync(path.join(isolated,'assets/page-template.lock.json'))).templateVersion,nextVersion);
+ok(run(['scripts/test-version-consistency.js'],{cwd:isolated}));
+console.log('PASS five review fixes: incremental blob scan, explicit page scope, note identity, overnight today, transactional upgrade');

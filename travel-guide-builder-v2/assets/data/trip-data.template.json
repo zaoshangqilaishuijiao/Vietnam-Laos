@@ -1,0 +1,210 @@
+{
+  "schemaVersion": "2.0",
+  "stage": "content",
+  "meta": {
+    "title": "待填写旅行攻略",
+    "subtitle": "",
+    "destination": "待核验",
+    "origin": "待核验",
+    "datePolicy": "undated",
+    "dates": [],
+    "dateExclusions": [],
+    "dateDisplay": "日期待定",
+    "travelers": { "count": 1, "profiles": [] },
+    "budgetBasis": "待核验",
+    "theme": "coast",
+    "routeSummary": "待核验",
+    "hero": {
+      "title": "待填编辑短标题",
+      "subtitle": "示例：从核心体验出发，经关键地域与交通过渡，以最终目的地收束，并体现已确认的旅行节奏。",
+      "cover": {
+        "src": "images/cover.jpg",
+        "alt": "示例：能代表本次旅程核心气质的目的地实景"
+      }
+    }
+  },
+  "features": {
+    "arrivalDeparture": false,
+    "exchange": false,
+    "weather": false,
+    "sourceIndex": true,
+    "dayMap": true,
+    "contextualExplore": false,
+    "nearbyExplore": true,
+    "dayNavigation": true,
+    "calendarExport": true,
+    "expenseTracker": false
+  },
+  "calendar": {
+    "mode": "daily"
+  },
+  "arrivalDeparture": {
+    "arrival": [
+      { "when": "示例：抵达当日 14:00", "action": "示例：乘机场快线进城", "sourceIds": [1] }
+    ],
+    "departure": [
+      { "when": "示例：根据已确认的航班与机场快线时刻安排出发", "action": "示例：乘机场快线前往实际出发航站楼", "sourceIds": [1] }
+    ],
+    "forms": [],
+    "airportKits": [],
+    "apps": [],
+    "flights": [],
+    "experiences": []
+  },
+  "places": [
+    {
+      "id": "example-paris",
+      "name": "示例：巴黎",
+      "localName": "Paris",
+      "searchName": "Paris",
+      "city": "巴黎",
+      "country": "法国",
+      "coordinates": { "latitude": 48.8566, "longitude": 2.3522 },
+      "verificationStatus": "示例：坐标已核验",
+      "sourceIds": [1]
+    },
+    {
+      "id": "example-hotel",
+      "name": "示例：巴黎市中心酒店",
+      "localName": "Example Hotel",
+      "searchName": "Example Hotel Paris",
+      "city": "巴黎",
+      "country": "法国",
+      "coordinates": { "latitude": 48.86, "longitude": 2.34 },
+      "verificationStatus": "示例：住宿地址待最终订单核验",
+      "sourceIds": [1]
+    },
+    {
+      "id": "example-market",
+      "name": "示例：手工市集",
+      "localName": "Example Craft Market",
+      "searchName": "Example Craft Market",
+      "city": "巴黎",
+      "country": "法国",
+      "usage": "suggestion",
+      "coordinates": { "latitude": 48.858, "longitude": 2.347 },
+      "verificationStatus": "示例：坐标待核验",
+      "sourceIds": [2]
+    },
+    {
+      "id": "example-restaurant",
+      "name": "示例：当地餐馆",
+      "localName": "Example Local Restaurant",
+      "searchName": "Example Local Restaurant",
+      "city": "巴黎",
+      "country": "法国",
+      "usage": "suggestion",
+      "coordinates": { "latitude": 48.855, "longitude": 2.35 },
+      "verificationStatus": "示例：坐标待核验",
+      "sourceIds": [2]
+    }
+  ],
+  "route": {
+    "stopIds": ["example-paris"],
+    "legs": []
+  },
+  "days": [
+    {
+      "dayNumber": 1,
+      "date": null,
+      "city": "示例：巴黎",
+      "theme": "示例：抵达与城市漫步",
+      "kind": "city",
+      "intensity": {
+        "score": 3.0
+      },
+      "accommodation": {
+        "label": "示例：巴黎市中心酒店",
+        "startPlaceId": "example-hotel",
+        "endPlaceId": "example-hotel",
+        "status": "stay"
+      },
+      "items": [
+        {
+          "id": "day-1-item-1",
+          "type": "place",
+          "placeId": "example-paris",
+          "title": "示例地点",
+          "activity": "示例：步行熟悉周边",
+          "details": [],
+          "links": [],
+          "referenceImages": [
+            {
+              "src": "images/example-route-reference.png",
+              "title": "示例：现场路线参考",
+              "alt": "示例：标注主要入口与步行顺序的路线图",
+              "caption": "示例：用于确认停车入口，不作为实时封路依据。"
+            }
+          ],
+          "calendarHighlight": true,
+          "startTime": "10:00",
+          "endTime": "12:00",
+          "timeText": "",
+          "transportMode": "步行",
+          "travelMinutes": 15,
+          "stayMinutes": 120,
+          "breakGroundRoute": false,
+          "reservationStatus": "none",
+          "sourceIds": [1]
+        }
+      ],
+      "risks": ["示例：博物馆 16:30 停止入场，按当前路线 16:45 才能抵达，因此不能保留该段"],
+      "alternatives": ["示例：若缆车因大风停运，改去山谷博物馆；无需新增预约，步行增加 15 分钟"],
+      "sourceIds": [1]
+    }
+  ],
+  "transport": [
+    { "from": "示例：机场", "to": "示例：市区", "departureWindow": "抵达后", "arrivalWindow": "约 45 分钟后", "mode": "机场快线", "duration": "约 45 分钟", "cost": "约 12 CNY", "verification": "示例：9 月 1 日末班车提前至 22:10；航班晚于 21:20 落地时改乘机场巴士", "sourceIds": [1] }
+  ],
+  "budget": {
+    "baseCurrency": "CNY",
+    "targetCurrencies": [],
+    "items": [
+      { "name": "示例：市内交通", "min": 10, "max": 20, "currency": "CNY", "note": "示例：地铁通票", "sourceIds": [1] }
+    ],
+    "total": { "min": 10, "max": 20, "currency": "CNY" },
+    "exchangeChannels": [],
+    "notes": ["示例：预算口径为单人、不含购物"]
+  },
+  "recommendations": [
+    { "id": "sight-example", "category": "景点指南", "name": "示例：城市博物馆", "reason": "示例：最能解释目的地历史脉络", "travelerFit": "示例：适合偏爱建筑与城市史的同行人", "timing": "示例：上午开馆后", "routeRelation": "主线附近", "duration": "示例：90 分钟", "reservation": "示例：建议提前预约", "limit": "示例：周一闭馆；若调到周一则不能加入", "executionAdvice": "示例：若 16:00 后抵达，只看一层常设展", "placeId": "example-paris", "image": { "src": "images/example-sight.jpg", "alt": "示例：景点实景", "sourceId": 2 }, "officialUrl": "https://example.com/official", "sourceIds": [1, 2] },
+    { "id": "experience-example", "category": "当地体验", "name": "示例：社区市集体验", "reason": "示例：比标准观光更接近当地生活", "travelerFit": "示例：适合愿意慢逛和观察日常的同行人", "timing": "示例：周末上午", "routeRelation": "需要短绕路", "duration": "示例：60 分钟", "reservation": "无需预约", "limit": "示例：仅周六 08:00–13:00 开放", "executionAdvice": "示例：若 11:30 后才抵达，直接放弃市集并返回原路线", "placeId": "example-market", "image": { "src": "images/example-market.jpg", "alt": "示例：市集实景", "sourceId": 2 }, "productPicks": [{ "name": "示例：手工冰箱贴", "reason": "示例：具体材质与当地纹样", "where": "示例：市集北侧", "image": { "src": "images/example-magnet.jpg", "alt": "示例：手工冰箱贴", "sourceId": 2 }, "sourceIds": [2] }], "sourceIds": [2] },
+    { "id": "food-example", "category": "餐饮指南", "name": "示例：当地家常菜馆", "reason": "示例：菜式具有地方代表性且位置顺路", "travelerFit": "示例：适合希望吃当地菜但不追求复杂仪式感的同行人", "timing": "示例：午餐 11:30 前", "routeRelation": "真正顺路", "duration": "示例：60 分钟", "reservation": "示例：晚餐建议预约", "executionAdvice": "示例：排队超过 30 分钟改选同街的具体备选店", "placeId": "example-restaurant", "image": { "src": "images/example-food.jpg", "alt": "示例：餐馆菜品", "sourceId": 2 }, "menuItems": [{ "name": "示例：招牌炖菜", "reason": "示例：实际菜单和食客记录均出现该菜", "sourceIds": [1, 2] }], "sourceIds": [2] }
+  ],
+  "explorationSegments": [],
+  "nearbyDays": [{ "dayNumber": 1, "status": "research-pending", "dayType": "ordinary", "reason": "请先围绕当天确定目的地核实推荐价值、分店、图片与坐标；顺路及原行程空隙不作为入选门槛。", "freeWindows": [], "candidates": [] }],
+  "dayRoadRoutes": [{ "dayNumber": 1, "legs": [] }],
+  "localKnowledge": [
+    { "id": "culture-characteristics", "category": "文化特点", "title": "示例：当地生活节奏与语言环境", "guidance": "示例：说明会影响本次行程安排的文化特点。", "action": "示例：给出对应的现场做法。", "dayNumbers": [], "placeIds": [], "sourceIds": [1] },
+    { "id": "meeting-etiquette", "category": "会客礼仪", "title": "示例：问候、称谓与守时", "guidance": "示例：说明与店员、服务人员或当地人交流时的礼仪。", "action": "示例：给出开口、预约或拍照前的具体做法。", "dayNumbers": [], "placeIds": [], "sourceIds": [1] },
+    { "id": "cultural-taboos", "category": "文化禁忌", "title": "示例：公共空间与宗教场所禁忌", "guidance": "示例：只写有可靠来源支持且会影响游客行为的禁忌。", "action": "示例：给出避免冒犯或违规的具体动作。", "dayNumbers": [], "placeIds": [], "sourceIds": [1] }
+  ],
+  "checklist": [
+    { "id": "timed-entry", "category": "预约", "text": "示例：在 8 月 20 日前完成实名预约并保存二维码离线副本", "sourceIds": [1] }
+  ],
+  "bookingLedger": [],
+  "weather": {
+    "enabled": false,
+    "startDate": "",
+    "endDate": "",
+    "locations": [
+      { "name": "示例：巴黎", "placeId": "example-paris", "latitude": 48.8566, "longitude": 2.3522 }
+    ]
+  },
+  "researchAudit": {
+    "status": "pending",
+    "xiaohongshuRequiredCount": 10,
+    "xiaohongshuReadCount": 0,
+    "xiaohongshuShortfallReason": "待完成研究",
+    "arrivalDepartureRequiredCount": 0,
+    "arrivalDepartureReadCount": 0,
+    "arrivalDepartureShortfallReason": "不适用"
+  },
+  "sources": [
+    { "id": 1, "type": "official", "scope": "general", "title": "示例：目的地旅游局官网", "url": "https://example.com/official", "topics": ["签证"], "cities": ["巴黎"], "verificationStatus": "示例：2026-08 已核验" },
+    { "id": 2, "type": "xiaohongshu", "scope": "general", "title": "示例：实际阅读的地点与商品笔记", "author": "示例：原帖作者", "url": "https://www.xiaohongshu.com/explore/replace-note-id", "topics": ["餐饮", "购物"], "cities": ["巴黎"], "verificationStatus": "待实际阅读" }
+  ],
+  "sourceIndex": [
+    { "sourceId": 1, "title": "示例：目的地旅游局官网", "cities": ["巴黎"], "tags": ["签证", "入境", "证件"], "searchHints": ["入境材料", "签证规则"] }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "travel-guide-pinbook-tool",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Local Pinbook CLI for exporting travel guide places to My Maps KML",
+  "dependencies": {
+    "pinbook": "1.3.0"
+  }
+}

@@ -1,0 +1,26 @@
+# Generated guide artifacts and local release bundles
+/outputs/
+/builds/
+
+# Retained legacy demos, one-off migrations, and local inspection artifacts
+/archive/
+
+# Temporary scripts and inspection artifacts
+/tmp/
+
+# Node.js dependencies and cache
+node_modules/
+.pnpm-store/
+
+# Environment files
+.env
+
+# Validation reports (never publish)
+*.validation.json
+*.baseline.json
+*.baseline.html
+*.before-*.json
+*.before-*.html
+
+# macOS artifacts
+.DS_Store

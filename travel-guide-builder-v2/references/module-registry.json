@@ -1,0 +1,76 @@
+{
+  "_comment": "主章节 DOM 名称、顺序、标题与必选状态的机器侧唯一真相源。渲染器、校验器和结构测试必须读取本文件。",
+  "modules": [
+    {
+      "name": "hero",
+      "title": "",
+      "description": "封面标题区",
+      "required": true,
+      "navigable": false
+    },
+    {
+      "name": "arrival",
+      "title": "到达 / 离开",
+      "description": "跨境到达/离开",
+      "required": false,
+      "condition": "arrival",
+      "navigable": true
+    },
+    {
+      "name": "route-map",
+      "title": "路线总览",
+      "description": "文字路线概览；地图位于逐日行程的现场探索工具内",
+      "required": true,
+      "navigable": true
+    },
+    {
+      "name": "itinerary",
+      "title": "逐日行程",
+      "description": "逐日行程",
+      "required": true,
+      "navigable": true
+    },
+    {
+      "name": "transport",
+      "title": "城际与市内交通",
+      "description": "城际与市内交通",
+      "required": true,
+      "navigable": true
+    },
+    {
+      "name": "budget",
+      "title": "预算与汇率",
+      "description": "预算与汇率",
+      "required": true,
+      "navigable": true
+    },
+    {
+      "name": "checklist",
+      "title": "出发前核验清单",
+      "description": "出发前核验清单",
+      "required": true,
+      "navigable": true
+    },
+    {
+      "name": "bookings",
+      "title": "预定清单",
+      "description": "活动与餐厅的预定事实清单",
+      "required": true,
+      "navigable": true
+    },
+    {
+      "name": "recommendations",
+      "title": "当地体验",
+      "description": "与预定清单相邻的景点、体验、餐饮与三类文化习俗",
+      "required": true,
+      "navigable": true
+    },
+    {
+      "name": "sources",
+      "title": "资料来源",
+      "description": "资料来源",
+      "required": true,
+      "navigable": true
+    }
+  ]
+}

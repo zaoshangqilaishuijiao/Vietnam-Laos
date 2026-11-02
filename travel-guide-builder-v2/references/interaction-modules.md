@@ -1,0 +1,132 @@
+# 交互模块、导航、搜索与初始化
+
+完整攻略使用本文件统一 DOM 和交互；局部修改只接入受影响组件。页面 `<body>` 的 `data-guide-template-version` 必须等于 `scripts/shared-constants.js` 的 `PAGE_TEMPLATE_VERSION`，并使用 `data-guide-mode="full"`，并以空格分隔的 `data-guide-features` 声明条件功能，例如 `arrival flight-records exchange weather-refresh source-index day-tabs day-map day-navigation calendar-export expense-tracker collaboration`。
+
+### 六套语义配色
+
+封面右上角 `[data-guide-theme-launcher]` 显示当前主题名称和色环，点击打开小型 `[data-guide-theme-popover]`；其中 `[data-guide-theme-picker]` 固定提供雨林绿、海岸蓝、暖陶土、墨色、勃艮第和午夜紫。浮层为非模态，不加整页遮罩或滚动锁；关闭按钮、空白区域和 `Escape` 均可关闭。交互只设置 `body[data-guide-theme]`，同步入口文字，并按 `guideId` 写入当前浏览器 `localStorage`。按钮使用 `aria-pressed` 表达当前选择；重复初始化复用现有实例，`destroy()` 后可重新初始化。默认海岸蓝，存储不可用时静默保持当前主题。
+
+### 执行型轻动效
+
+- 动效只用于表达“可操作、按下、切换和完成”，不用作装饰性入场。页面状态的视觉优先级固定为：禁用／加载 → 错误 → 当前／选中／展开 → `focus-visible` → 按压 → hover → 默认，低优先级状态不得覆盖高优先级状态。
+- `.guide-action-card` 及其他含多个链接或按钮的密集执行卡始终保持布局稳定，hover 和 `focus-within` 只改边框、底色或阴影，不整卡上浮。只有整个容器本身是单一链接时，才可使用轻微位移。
+- 图片缩放只用于 `[data-preview-image]` 内真实可点击的预览图：外层卡片不移动，图片在容器裁切范围内轻微放大。封面图、机票凭证、地图底图和其他非点击装饰图不使用该效果。
+- hover 样式只能放在 `@media (hover: hover) and (pointer: fine)` 中；触屏使用按压、选中、展开和结果状态反馈。独立按钮可用约 `.98` 的短按压缩放，但快速导航和日期 Tab 因承载横向滑动，不得使用缩放或额外位移。
+- 保留现有的日期 Tab 方向切换、来源与地点定位高亮、Toast、地图骨架加载及清单进度过渡。不新增封面、全页、章节或普通浮层的入场动画，不引入第三方动效库或第二套全局控制器。过渡必须显式限定属性，禁止使用 `transition: all`。
+- `prefers-reduced-motion: reduce` 下停止位移、缩放、闪烁、滑入和地图骨架动画；保留文字、颜色、静态边框、当前项和进度结果，不得因减少动效而丢失状态语义。
+- 脚本触发的定位滚动同样遵循该偏好：正常模式可平滑滚动，减少动效模式必须使用即时定位。
+
+## 交互模块
+
+| 模块 | 启用条件 | 最小 DOM / 配置 |
+| --- | --- | --- |
+| 右下角组合工具 | 完整攻略 | 唯一 `[data-guide-floating-tools]`、`[data-guide-floating-toggle]` 与 `[data-guide-floating-actions]`；牛哞作为开关，包含搜索，按条件加入今天、编辑和汇率 |
+| 来源跳转 | 有 `[n]` 或 `#source-n` | 指向 `#source-n` 的链接 |
+| 普通搜索 | 完整攻略 | 搜索入口、浮层、表单、结果区 |
+| 高级搜索 | 有本地笔记索引 | `#travel-source-index[type="application/json"]`，并声明 `source-index` |
+| 复制 | 有可导航地点或当地 APP | `[data-copy]` 或 `.copy-target`；APP 仅名称按钮复用同一控制器，说明、Logo及背景不复制，不显示“复制名称”提示或下载入口 |
+| 核验清单 | 完整攻略 | `[data-checklist][data-editable="true"]` 与 `[data-checklist-items]` |
+| 图片预览 | 有图片 | `[data-preview-image]` |
+| 汇率 | 使用外币 | 牛哞菜单的汇率入口、独立 `[data-exchange-dialog]`、`[data-exchange-tool]`、基准币与显式目标币，并声明 `exchange` |
+| 天气刷新 | 核验清单中配置天气卡 | `data-weather-card`、行程日期、地点 JSON、结果区与彩蛋源码；统一传 `weather: true` |
+| 快速导航 | 完整攻略 | 空的 `[data-quick-nav].quick-nav`；正文导航章节提供唯一 `id` 与 `data-nav-label` |
+| 日期 Tab | 完整攻略 | `[data-day-tabs]`、等量的 `[data-day-tab]` 与 `[data-day-panel]`，并声明 `day-tabs` |
+| 每日地图联动 | 2.0 完整攻略 | `.execution-item[data-place-id][data-day-number]`、唯一 `[data-day-tab]` 日期选择与 `day-map`；旧 A→B 路段才使用 `[data-map-view="segment-…"]`；道路仅来自预生成几何 |
+| 附近逛逛 | 新攻略默认 | [逐日策略](nearby-explore.md) 决定候选及合理隐藏日；`[data-nearby-switch]` 按日保存开关，同步控制 `[data-nearby-panel]` 与地图标记；卡片 `[data-focus-nearby]` 与标记双向定位 |
+| 当天行程汇总与导航 | 当日至少一个可连接路段 | `day-navigation`；`.route-timeline-card` 依次列时间、节点、停留、交通胶囊和 `[data-route-navigation-launch]`；多方案使用 `[data-route-mode-option]` |
+| 日历导出 | 有明确日期 | `[data-calendar-events][type="application/json"]`、`data-calendar-mode="daily|timed"`、`[data-calendar-export]` 与 `calendar-export` |
+| 预定清单状态 | 有 `bookingLedger` | 本地模式使用 `[data-booking-toggle][data-local-booking="true"]`，按已预订 → 待预订 → 待核验循环并按 `data-guide-id` 隔离保存；共同编辑使用 `[data-execution-status][data-execution-id="booking:…"]`，交由统一执行状态同步 |
+| 实际支出 | 用户需要记账 | `[data-expense-tracker]` 与 `expense-tracker`；默认关闭 |
+| 已购机票 | 启用到达 / 离开 | `[data-flight-manage]`、按需 `[data-flight-editor]`、紧凑 `[data-flight-card]`、`[data-flight-view]` 与 `flight-records`；详见 [已购机票记录](flight-records.md) |
+| 语义配色 | 完整攻略 | 封面 `[data-guide-theme-launcher]`、非模态 `[data-guide-theme-popover]`、`[data-guide-theme-picker]` 与六个 `[data-guide-theme]` 按钮 |
+
+## 交互模块源码组合
+
+`assets/travel-guide-interactions.js` 由 `assets/modules/*.js` 经 `scripts/combine-interactions-modules.js` 组合生成，不要直接手写组合产物。修改任一模块后：
+
+1. 需要递增版本哨兵时，先更新 `scripts/shared-constants.js` 的 `ASSET_SENTINELS`（唯一来源），再运行 `node "<skill-root>/scripts/combine-interactions-modules.js"` 重新生成（默认幂等）；
+2. 组合产物属于模板锁范围，内容变化必须提升 `scripts/shared-constants.js` 的 `PAGE_TEMPLATE_VERSION` 并更新 `assets/page-template.lock.json` 哈希；
+3. 按 [静态验收](verification.md) 执行依赖安装与全量回归，通过后再进入浏览器验收。
+
+模块文件按 `01`–`18` 连续编号；组合脚本自动扫描 `assets/modules/` 并按数字前缀排序，发现非法命名或跳号直接失败，不再维护第二份手写清单。
+
+预定清单只改变执行状态，不改写原始 `bookingLedger`、行程时间或预约事实。未启用共同编辑时，状态以 `data-guide-id` 为命名空间保存在当前浏览器；生成页面始终带稳定 `data-guide-id`，仅旧页面才回退使用当前路径。启用共同编辑后不再写本地状态，统一进入执行状态队列并由服务端回写。
+
+## 2.0 执行联动
+
+- 逐日行程只保留按实际天数生成的日期 Tab，不显示"上一天 / 下一天"按钮或数字进度。任一时刻只有一个 `[data-day-panel]` 可见；点击或键盘切换 Tab 后，卡片按方向轻量滑入，并发送 `guide:day-change` 让每日地图同步。Tab 栏单行横向滚动但隐藏滚动条，支持方向键、Home、End，且尊重 `prefers-reduced-motion`。同一 `root` 重复初始化必须复用既有实例；`destroy()` 后才允许重新绑定，避免双重监听。
+- 每日卡片固定按"日期、天气与执行摘要 → 当日主题与住宿 → 当日路线（有路段时） → 详细时间线 → 有效补充说明（如有）"组织。吃喝、风险和替代方案分别有内容时才显示对应分组；三者均为空时省略整个 `.day-notes`，不得显示空标题或“待核验”。`.day-overview-top` 使用左侧日期和右侧天气、地图、强度三个等高并排控件；天气必须是弱状态但保留外框，三个控件文字大小、外框高度和内边距保持一致。地图按钮用于切换至当天地图，强度显示"行程强度 2.5 🌟"。路线内已有逐段导航入口，因此不得再输出“当天导航”锚点或按钮。窄屏时三控件作为同一操作组整行下移，触控目标不小于 44px。390px、412px 宽度必须验证无截断、重叠和页面级横向溢出。卡片只保留一层主边框和必要分隔线；日期、Tab、日历事件和地图日编号必须一一对应。
+- 全程路线文字使用 `.route-summary-list` 紧凑步进条：仅显示中文主名和序号，完整中外文名称保留在复制值与 `title`；桌面端允许自然换行，手机端单行横向滑动。禁止把全部中外文名称输出成长段下划线链接。
+- 当日路线仅在存在相邻起终点的可连接路段时使用唯一的 `[data-day-route-summary]`。无路段时整块省略，不显示“导航不可用”空状态。它是固定的**执行汇总卡**：位于日摘要之后、`详细时间线`之前，外层必须为 `.route-timeline-card`，不重复“当日路线 + 日期”标题。卡片首行始终只显示“共 N 个停靠点 · 已知移动 X · 终点 Y”三项事实；即使所有节点都有精确时间，也不得改成全程、步行合计或预计到达的另一种摘要。第二层必须是左时间、中央编号轨道、右地点信息的 `.route-stop-row` 竖向时间轴：地点主名、可选当地名、停留、起点/终点状态及下一段交通胶囊依次出现。时间轴只承载这些执行信息与交通选择，不放活动正文、备注或省略号菜单；详细说明继续留在“详细时间线”。地名是直接打开 Google Maps 的链接；有效路段之间保留 `breakGroundRoute=true` 断点，不能跳过断点伪造连线。已有路段但缺坐标或交通方式时仍保留该路段的待核验说明。
+- 地点详情只来自 `places[]`。逐日条目点击或键盘激活后发送 `guide:focus-place`，地图切换到当天路线、平移到对应 Marker 并打开标签；Marker 点击反向定位并短暂高亮对应逐日条目。
+- 地图只在逐日行程中提供一张按日切换的实例，不再提供整程视图；旧 A→B 探索视图仅作兼容。每日路线从起始住宿、条目顺序和结束住宿生成，实际道路几何从 `dayRoadRoutes[]` 读取；飞机、渡轮等断点分开。附近逛逛开关只控制当日候选卡片和地图点，不改原计划、时间轴、交通胶囊或日历；图片复用预览控制器，地点链接沿用现有导航与小红书跳转规则。定位只在用户点击后请求，拒绝时仍可按日期浏览。
+- 分段导航直接位于紧凑时间轴内。单一已知方式显示 emoji 胶囊与路线操作；多种方式仅在 `navigationOptions` 已提供各自核验耗时时并排显示，支持 🚗、🏍、🛺、🚶‍♀️、🚇、🚌、⛴️、🚠、🚞、🚋、🚝、🚐、🚲。步行、驾车 / 打车、公交 / 地铁是默认评估集，但只展示合理且已核验的候选；特色交通按路段实际可达性加入，每段总数仍为 2–5 项。`transportMode` 中的“地铁／出租车”等斜杠文本只是行程事实，不能把同一个 `travelMinutes` 复制成多个可选胶囊；缺少 `navigationOptions` 时显示“交通方式待核验”，不生成伪造的分方式时间或导航。推荐角标固定标记数据中的唯一推荐项，不因用户点击而移动；当前选中项使用实心态。若全链路节点的 `startTime/endTime` 是确定时间且每段推荐耗时完整，切换后只按每段与默认耗时的差值显示该段预计抵达，保留原计划时间并提示早到/迟到和跨日；固定锚点不平移，详细时间线与 ICS 不变。移动合计与导航链接随方案切换。`timeText` 始终是弹性展示文本，即使含 `HH:mm` 也不得解析或参与重算。时长缺失或断点场景同样不伪造重算。连续多个条目引用同一 `placeId` 时只合并显示节点，必须保留首次抵达条目的交通方式、耗时和导航方案。手机单列自然换行，桌面能同排则同排；触控目标至少 40px。特色交通使用 Google Maps 通用起终点页，操作文案为“查看…路线”，不伪造不受支持的 `travelmode`；地点只包含相邻起终点，不带途经点。跨越断点、缺坐标或禁用导航均不得桥接；未知方式明确待核验。路线汇总使用 DOM 节点和 `textContent` 更新，不得将地点文本拼接到 `innerHTML`。
+- `calendar.mode=daily` 为默认：每个旅行日生成一个全天事件；用户明确要求精确提醒时使用 `timed`，仅导出 `calendarHighlight=true` 且有明确开始时间的条目。每天只选 1–6 个主要时间/地点，日历是执行摘要而非网页副本。
+- 导出工具栏只由按钮说明范围，初始不重复显示“可导出 N 项完整行程”。保留空的 `[data-calendar-status][role="status"]` 用于操作结果或错误；生成成功后 daily 按实际事件日期去重显示“天”，timed 按事件显示“项”。结果为弱化文字并允许自然换行，不让长提示制造横向滚动；“已生成文件”不表示已导入用户日历。
+- ICS 的 `SUMMARY` 固定使用简短的 `Day N | 标题`，不得塞入路线和细节；`LOCATION` 只放城市或核心地点，详细地址放进 DESCRIPTION。DESCRIPTION 使用 `descriptionSections[]`：段落以 `📍路线、🗺行程、🏛景点、🚇交通、⚠️备注、🔗链接、🏨住宿` 为视觉锚点，段落间空一行、段内单换行；空段不输出。景点采用编号列表，地址、导航和网页 URL 独占一行，便于识别与长按复制。备注最多 3 条，链接保留当天全部分段查询（含方式标签）、关键预约/官网和住宿定位；路线与每日地图同源，入住日不前置酒店、退房日不追加酒店。
+- ICS 只由 `assets/ics-calendar.js` 生成：文件直接以 `BEGIN:VCALENDAR` 开始并以 CRLF 结束；每个事件包含稳定 `UID`、UTC `DTSTAMP`、`DTSTART` 和 `DTEND`；全天事件的 `DTEND;VALUE=DATE` 为次日；反斜杠、英文逗号、分号和换行按 RFC 5545 转义，并按 UTF-8 75 字节折行。不得添加 BOM、使用 LF-only、重新内联拼接或以 `DURATION:P1D` 代替统一的全天结束日期。实际支出记录仅在功能开启时出现，保存在 `localStorage`，可逐条删除并导出 CSV，不上传且不覆盖计划预算。
+
+### 单篇攻略的导航偏好
+
+用户明确指定单一路线方式时，可在对应到达条目设置 `navigationMode`（允许值与 `execution-model-v2.md` 一致）。需要比较方式时改用 `navigationOptions`，不得同时保留 `navigationMode`。每个 option 包含 `mode/durationMinutes/recommended`，必须有且仅有一个推荐项，且其耗时与条目 `travelMinutes` 一致；没有来源支持的替代耗时不得填写。二者都只改变路线汇总与路线查询，不改写详细时间线、已购交通或地图事实，也不把链接当作车辆可达性证明。
+
+## 快速导航
+
+首屏目的地入口使用原生 `href="#day-N"` 和 `data-day-jump="N"`，统一由 `initDayTabs` 揭示对应日卡、聚焦日期Tab并滚动至日期栏；不生成第二套日期状态。支持首载深链接、hashchange、浏览器前后退，未知日编号不改变当前日；Ctrl/Command等修饰点击保留原生链接行为。共享入口仍只初始化一次。
+
+- 首屏后放置空容器 `<nav class="quick-nav" data-quick-nav aria-label="页面快速导航"></nav>`；实际正文模块提供唯一 `id` 与简短 `data-nav-label`。脚本按 DOM 顺序扫描生成项目，自动排除缺失、`hidden` 或 `data-nav-hidden="true"` 的模块；新页面不得手写链接清单。
+- 使用 `--guide-nav-bg/text/active/active-text/hover/border/focus` 管理颜色，目的地只覆盖变量；默认浅色半透明底、深色普通文字、主题色活动项与白字、高对比度焦点框，并保留无毛玻璃时的纯色可读降级。导航层级低于搜索、图片预览、地图弹层和模态窗口。
+- 导航处于正常文档流，滚至顶部后保持 `sticky`，单行横向滑动且不换行；溢出默认用触摸 / 触控板滑动和 `proximity` 吸附，不自动改成整栏下拉。只有用户明确要求紧凑模式时才另做可关闭、带 `aria-expanded` 的下拉。
+- 当前章节使用 `is-active` 与 `aria-current="location"`；点击、Hash 和滚动同步状态，活动项自动横向居中。脚本根据实际高度维护 `--guide-nav-offset`，以 `requestAnimationFrame` 合并滚动计算，避免标题遮挡或页面纵向跳动。
+- 快速导航只负责主章节定位；逐日日期切换由章节内日期 Tab 独立承担，导航栏不得再维护日期循环、长按菜单、上一天/下一天或第二套日期状态。
+- 防误触必须由共享脚本统一处理：移动端点击高度至少 44px、项目间距至少 6px；横向位移超过 8px 且大于纵向位移时判定拖动并取消随后点击，纵向手势不拦截页面滚动。用户手动拖动或滚轮操作期间暂停自动居中约 300ms，同一项目约 320ms 内的重复指针点击只执行一次。
+- 整个胶囊均可点击，但不承载复制、搜索或外链；导航不得制造全页横向溢出。模态浮层打开时由更高层遮罩接管点击，滚动更新只改高亮、不抢焦点。键盘保留原生链接行为，`prefers-reduced-motion` 下关闭平滑和跑马灯动画。
+- 完整攻略只通过 `initGuidePage()` 默认初始化；不支持增强能力时仍保留原生锚点。不得单独调用 `initQuickNav()` 或复制页面专属导航逻辑。
+
+## 全局入口与编辑表面
+
+- 页面级固定入口统一收敛到右下角唯一的 `[data-guide-floating-tools]`（层级 2400）。常态由牛哞角色替代 `…` 作为组合菜单开关；素材尚未加载或加载失败时保留 `…` 回退。展开后从下向上显示图标加短标签的操作胶囊。操作顺序固定为“今天（如有）→ 编辑（如有）→ 汇率（启用时）→ 搜索”，搜索最靠近开关；搜索面板为 2500，模态框高于面板，Toast 只作短暂反馈。新增组件不得自行使用 `position:fixed; right/bottom` 或另建悬浮栈。
+- 牛哞只承担入口状态反馈：待机使用低频动作，页面发生有效滚动时原地跑动，停止滚动约 220ms 后回到待机；菜单展开时挥手优先并暂停跑动。滚动监听必须被动且经 `requestAnimationFrame` 合并，不改变页面滚动位置。`prefers-reduced-motion: reduce` 下固定为静态首帧。素材属于公开模板资产，由渲染器复制到攻略 `assets/`，不得从第三方 CDN 动态加载。
+- “搜索”始终存在并保留 `#guide-search-trigger`；“编辑”仅在 collaboration 已配置时由协作运行时插入，不生成空入口；“今天”仅当浏览器本地日期与某个 `[data-day-panel][data-itinerary-date]` **完全相等**时出现，点击复用 `data-day-jump` 与日期 Tab，不跳转最近日期、首日或上次日期。旅行开始前、结束后以及行程日期间断日均隐藏。
+- 开关点击是主交互；精细指针可在短延迟 hover 后展开、移出后延迟收起，触屏不依赖 hover。展开时 `…` 变为 `×`；点击操作、点击外部或按 `Escape` 收起，键盘方向键可展开并进入操作列表。关闭搜索后焦点回到组合开关。所有操作至少 44px，安全区、打印隐藏和 `prefers-reduced-motion` 必须统一处理。
+- 核验清单的"编辑清单"、新增确认项与删除操作属于模块内联工具栏，不得固定悬浮；共同编辑仅在已配置时创建唯一的 `[data-guide-collab]` 并把按钮挂入组合菜单。保存中、失败、编辑中只更新编辑操作的短标签和可访问名称，不增加第四个悬浮按钮；重试保存和退出编辑位于编辑对话框内。动态初始化必须幂等：已有入口/工具栏时复用，不重复注入或绑定第二套事件。
+- 所有可重复调用的组件初始化都必须复用现有控制器或已绑定节点；重复调用不得增加点击次数、网络请求、下载动作或对话框监听。
+- 搜索面板与编辑对话框均应是独立表面：搜索负责查询、定位和高级来源结果；编辑负责数字码、状态和简短备注。两者不得共用容器、按钮或输入框，也不得在打开/关闭时清空对方状态。
+- 任何包含输入框与多个按钮的模块默认单列或自适应换行；移动端触控目标至少 44px，不能以压缩字体、覆盖按钮或横向溢出来维持并排。
+
+## 搜索与来源
+
+- 小红书操作链接保留 HTTPS 网页地址供桌面端使用，并额外声明官方 App Deeplink。手机端点击时只调用 `xhsdiscover://search/result` 或具体笔记的 `xhsdiscover://item/<note_id>`，不得定时跳转或自动回退网页：部分移动浏览器切换 App 时不触发可靠的后台事件，自动回退会在唤起成功后继续覆盖当前页面，并可能进入小红书移动网页的 404。短时检测仅用于在攻略页仍可见时显示本地 Toast，并尽力复制地点名；无论检测结果如何都不得再次修改页面地址。App 未安装或协议被宿主拦截时保持当前攻略页，提示用户在小红书内搜索具体地点。桌面端继续使用 HTTPS。`xhslink.com` 等无法在本地可靠解析笔记 ID 的短链只保留原始 HTTPS 链接，不猜测 Deeplink。
+
+- 搜索入口是组合工具内固定的“放大镜 + 搜索”操作；点击后先收起组合菜单，再在右下安全区上方打开独立面板。面板宽度不超过 448px，手机端左右各保留至少 10px，并采用"标题与关闭 → 输入与操作 → 上一个/计数/下一个 → 提示或结果"的四层结构；关闭按钮显示 `×` 并提供完整 `aria-label`。
+- 搜索输入框、清空、搜索、高级搜索保持同一操作组；空间足够时同排，520px 以下输入框独占首行、三个操作位于次行。输入框和主要按钮高度至少 42px，触屏输入框至少 44px、字体至少 16px；不得因并排压缩造成文字截断。普通"搜索"和"高级搜索"均使用主题色实心按钮，"清空"为低强调文字按钮。
+- 普通搜索只按用户输入的完整关键词精确匹配攻略可见正文，不做拆词或模糊匹配，并排除资料来源模块、隐藏内容、脚本、表单和未打开对话框。提交或输入停顿约 120ms 后执行；命中时自动定位首个结果并高亮，上一条/下一条循环切换当前高亮，计数统一显示 `当前 / 总数`。无命中时只提示可使用高级搜索，不自动切换搜索模式。
+- 高级搜索必须是独立按钮 `#guide-search-advanced`，仅检索预生成的 `#travel-source-index[type="application/json"]`，网页运行时不联网、不读取本地文件。索引项固定使用 `{sourceId,title,cities,tags,searchHints}`；每篇小红书笔记有 10–20 个去重标签和 2–6 条可搜索提示词。按标题、提示词、城市、标签及中文双字片段模糊计分，权重依次为 5、4、3、2，最多显示 8 条。结果展示 `[n] 标题`、城市/标签、最多 3 条提示词和"查看资料来源"，链接必须指向存在的 `#source-n`。
+- 未启用 `source-index` 时仍显示高级搜索按钮但保持禁用，并以 `title` 解释"本攻略未建立资料来源索引"；启用时索引必须非空、每个 `sourceId` 唯一且指向实际来源条目。高级搜索不得展示笔记原文，也不得把搜索摘要计为已读取笔记。
+- 初始提示固定说明"普通搜索精确匹配攻略正文；高级搜索模糊匹配资料来源"。清空会移除输入、结果和全部正文高亮并恢复 `0 / 0`；关闭会移除正文高亮、收起面板并把焦点还给组合工具开关。`/` 打开，`Escape` 关闭；面板使用 `aria-live` 报告结果。
+- 所有 `#source-n` 链接复用同一事件委托：平滑定位、约 2 秒闪烁，再次点击立即取消。网页运行时不联网检索、不读取本地文件、不展示笔记原文。
+
+## 汇率
+
+汇率速算只从牛哞组合菜单进入独立对话框，预算正文不再生成第二张汇率卡。`[data-exchange-tool]` 使用 `data-exchange-base="CNY"` 和按目的地填写的 `data-exchange-targets`；不得保留无关的通用默认币种。对话框提供当地币种切换、当地币→人民币与人民币→当地币双向输入、同一响应生成的 `1 CNY` 和 `1 USD` 参考行、随实际报价计算的心算口诀。保留 `data-exchange-refresh`、`data-exchange-status`、`data-exchange-input`、`data-exchange-local-input`、`data-exchange-last-updated` 等明确节点。首次加载不请求；用户点击“刷新汇率”才联网，失败时保留上次有效报价。CNY 基准使用主汇率源；Frankfurter 仅作为非 CNY 基准的兼容回退。关闭对话框后焦点返回牛哞开关；重复初始化复用控制器，`destroy()` 后可重新初始化。具名换汇渠道净额比较仍在预算正文，与实时中间价换算区分。
+
+## 唯一初始化入口
+
+完整攻略内嵌 `assets/travel-guide-interactions.js` 后只调用一次；没有对应 DOM 的组件会安全跳过：
+
+```js
+TravelGuideInteractions.initGuidePage({
+  exchange: document.querySelector('[data-exchange-tool]') ? true : false,
+  weather: document.querySelector('[data-weather-card]') ? true : false,
+  dayTabs: true,
+  execution: true,
+  calendar: document.querySelector('[data-calendar-events]') ? true : false,
+  expenses: document.querySelector('[data-expense-tracker]') ? true : false,
+  flights: document.querySelector('[data-flight-records]') ? true : false,
+  themes: true,
+});
+```
+
+不启用的条件组件传 `false` 或省略；导航默认启用并从实际章节生成。不要单独调用 `initExchange()`、`initWeatherForecast()`、`initQuickNav()` 等子组件函数，也不要另写搜索、来源跳转、复制、清单或图片预览的平行实现。
+
+“今天”入口在菜单展开、页面恢复可见与 pageshow 时重新匹配本地日期；跨日后更新目标或隐藏入口，不自动切换用户正在看的日卡。销毁控制器时清理恢复事件。

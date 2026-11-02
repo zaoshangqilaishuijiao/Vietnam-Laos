@@ -1,0 +1,6 @@
+interface:
+  display_name: "旅行攻略制作 2.52.0"
+  short_description: "默认生成地点统一、时间可校验且地图联动的旅行攻略"
+  default_prompt: "使用 $travel-guide-builder-v2 按当前 2.52.0 模板处理旅行攻略需求，从研究和文字方案确认开始，以统一地点库和结构化每日条目生成并验收网页。"
+policy:
+  allow_implicit_invocation: true

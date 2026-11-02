@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "2.0",
+  "stage": "request",
+  "meta": {
+    "title": "待填写旅行攻略",
+    "destination": "待核验",
+    "origin": "待核验",
+    "datePolicy": "undated",
+    "dates": [],
+    "dateExclusions": [],
+    "travelers": { "count": 1, "profiles": [] },
+    "budgetBasis": "待核验"
+  },
+  "requirements": {
+    "mustVisit": ["示例：卢浮宫（用户明确要求必去）"],
+    "avoid": ["示例：不安排红眼航班"],
+    "preferences": ["示例：偏好步行可达的餐厅"],
+    "constraints": ["示例：每日预算上限 500 CNY"],
+    "assumptions": ["示例：用户接受工作日出行"],
+    "openQuestions": ["示例：是否需要在当地购买电话卡"]
+  },
+  "features": {
+    "arrivalDeparture": false,
+    "exchange": false,
+    "weather": false,
+    "sourceIndex": true,
+    "dayMap": true,
+    "contextualExplore": true,
+    "dayNavigation": true,
+    "calendarExport": true,
+    "expenseTracker": false
+  },
+  "researchPlan": {
+    "xiaohongshuTarget": 10,
+    "arrivalDepartureTarget": 0,
+    "officialTopics": ["示例：目的地签证与入境要求"]
+  }
+}

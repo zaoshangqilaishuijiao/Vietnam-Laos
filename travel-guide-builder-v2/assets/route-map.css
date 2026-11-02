@@ -1,0 +1,127 @@
+/* travel-route-map.css: v7 */
+body[data-guide-theme] { --guide-map-candidate: #c77b3e; }
+body[data-guide-theme="terracotta"] { --guide-map-candidate: #187b75; }
+body[data-guide-theme="burgundy"] { --guide-map-candidate: #a67229; }
+.route-map-wrap {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+  background-color: var(--guide-page-soft);
+  background-image:
+    linear-gradient(var(--guide-line-light) 1px, transparent 1px),
+    linear-gradient(90deg, var(--guide-line-light) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.route-map {
+  position: relative;
+  z-index: 1;
+  min-height: 520px;
+}
+
+.route-map-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(110deg, transparent 30%, color-mix(in srgb, var(--guide-surface) 42%, transparent) 45%, transparent 60%);
+  background-size: 220% 100%;
+  transition: opacity 0.25s ease;
+}
+
+.route-map-loading.is-visible {
+  opacity: 1;
+  animation: route-map-skeleton 1.4s linear infinite;
+}
+
+.route-map-loading.is-final-fallback {
+  opacity: 1;
+  background: transparent;
+  animation: none;
+}
+
+.route-map-status {
+  position: absolute;
+  z-index: 910;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 8px 12px;
+  border: 1px solid var(--guide-line-light);
+  border-radius: 999px;
+  color: var(--guide-on-light);
+  background: color-mix(in srgb, var(--guide-surface) 90%, transparent);
+  box-shadow: var(--guide-shadow-sm);
+  font-size: 13px;
+  text-align: center;
+}
+.route-map-status[hidden] { display: none; }
+.nearby-day-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 12px; }
+.nearby-day-switch { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: var(--guide-on-light); font-weight: 750; cursor: pointer; }
+.nearby-day-switch[hidden], [data-nearby-status][hidden], .nearby-day-photo img[hidden] { display: none; }
+.nearby-day-switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.nearby-day-switch-track { position: relative; display: inline-block; width: 48px; height: 28px; border-radius: 999px; background: var(--guide-line-light); box-shadow: inset 0 0 0 1px var(--guide-on-light-muted); }
+.nearby-day-switch-track::after { position: absolute; top: 4px; left: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--guide-surface); content: ""; transition: transform .16s ease; }
+.nearby-day-switch input:checked + .nearby-day-switch-track { background: var(--guide-action); }
+.nearby-day-switch input:checked + .nearby-day-switch-track::after { transform: translateX(20px); }
+.nearby-day-switch input:focus-visible + .nearby-day-switch-track { outline: 3px solid var(--guide-action); outline-offset: 3px; }
+.nearby-day-legend { display: inline-flex; align-items: center; gap: 7px; color: var(--guide-on-light-muted); font-size: .84rem; }
+.nearby-day-legend i { width: 10px; height: 10px; border-radius: 50%; background: var(--guide-action); }
+.nearby-day-legend i.is-nearby { margin-left: 9px; background: var(--guide-map-candidate); }
+.nearby-day-panel[hidden] { display: none; }
+.nearby-day-panel { margin-top: 16px; }
+.nearby-day-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+.nearby-day-card { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 12px; min-width: 0; padding: 10px; border: 1px solid var(--guide-line-light); border-radius: var(--guide-radius-sm); background: var(--guide-surface); }
+.nearby-day-card.is-active { border-color: var(--guide-map-candidate); box-shadow: 0 0 0 2px color-mix(in srgb, var(--guide-map-candidate) 24%, transparent); }
+.nearby-day-photo { display: block; width: 104px; height: 104px; padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--guide-page-soft); cursor: zoom-in; }
+.nearby-day-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.nearby-day-card strong { display: block; color: var(--guide-on-light); line-height: 1.3; }
+.nearby-day-card small { display: block; color: var(--guide-on-light-muted); }
+.nearby-day-card p { margin: 5px 0 9px; color: var(--guide-on-light); font-size: .9rem; line-height: 1.45; }
+.nearby-day-actions { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.nearby-day-actions :is(button,a) { display: inline-flex; align-items: center; min-height: 44px; border: 0; padding: 3px 0; color: var(--guide-action); background: transparent; font: inherit; font-size: .84rem; text-decoration: underline; cursor: pointer; }
+.nearby-day-photo:disabled { color: var(--guide-on-light-muted); cursor: default; font: inherit; font-size: .8rem; }
+.nearby-day-actions :is(button,a):focus-visible,.nearby-day-photo:focus-visible { outline: 3px solid var(--guide-action); outline-offset: 2px; }
+
+.route-time-label[hidden],
+.route-poi-detail[hidden] {
+  display: none !important;
+}
+
+@keyframes route-map-skeleton {
+  from { background-position: 200% 0; }
+  to { background-position: -20% 0; }
+}
+
+@media (max-width: 640px) {
+  .route-map-wrap,
+  .route-map {
+    min-height: 440px;
+  }
+}
+@media (max-width: 480px) { .nearby-day-list { grid-template-columns: 1fr; } .nearby-day-card { grid-template-columns: 82px minmax(0, 1fr); } .nearby-day-photo { width: 82px; height: 82px; } }
+
+.route-map-actions {
+  position: absolute;
+  z-index: 920;
+  left: 50%;
+  bottom: 58px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+}
+.route-map-actions[hidden] { display: none; }
+.route-map-actions button { white-space: nowrap; }
+@media (max-width: 480px) {
+  .route-map-actions { bottom: 68px; gap: 6px; }
+  .route-map-actions button { padding: 8px 10px; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-map-loading { transition: none; }
+  .route-map-loading.is-visible { animation: none; }
+  .nearby-day-switch-track::after { transition: none; }
+}

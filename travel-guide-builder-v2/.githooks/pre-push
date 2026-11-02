@@ -1,0 +1,30 @@
+#!/bin/sh
+# 推送前只检查 Git 本次通过 stdin 声明的待推送提交。
+
+HOOK_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+. "$HOOK_DIR/email-gate.sh"
+
+remote_name=$1
+zero=0000000000000000000000000000000000000000
+checked=""
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "$local_ref" ] || continue
+  [ "$local_sha" = "$zero" ] && continue
+
+  if [ "$remote_sha" = "$zero" ]; then
+    commits=$(git rev-list "$local_sha" --not --remotes="$remote_name" 2>/dev/null) || email_gate_fail "无法解析新增引用 $local_ref 的待推送提交。"
+  else
+    commits=$(git rev-list "$local_sha" "^$remote_sha" 2>/dev/null) || email_gate_fail "无法解析 $local_ref 相对 $remote_ref 的待推送提交。"
+  fi
+
+  for sha in $commits; do
+    case " $checked " in
+      *" $sha "*) continue ;;
+    esac
+    email_gate_check_commit "$sha"
+    checked="$checked $sha"
+  done
+done
+
+exit 0

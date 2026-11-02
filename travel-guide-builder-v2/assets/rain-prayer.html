@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>祈求龙王别下雨 - 预防降雨</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(to bottom, #2b3a42, #3f51b5, #5c6bc0);
+            transition: background 2.5s ease-in-out;
+            position: relative;
+        }
+
+        body.sunny {
+            background: linear-gradient(to bottom, #2980b9, #6dd5fa, #ffffff);
+        }
+
+        /* 预报乌云层 */
+        .cloud-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            transition: opacity 2s ease;
+        }
+
+        .cloud {
+            position: absolute;
+            background: rgba(200, 210, 225, 0.25);
+            border-radius: 100px;
+            animation: moveCloud 20s linear infinite;
+        }
+
+        .cloud::before, .cloud::after {
+            content: '';
+            position: absolute;
+            background: rgba(200, 210, 225, 0.25);
+            border-radius: 50%;
+        }
+
+        .cloud1 { width: 200px; height: 60px; top: 10%; left: -50px; }
+        .cloud1::before { width: 80px; height: 80px; top: -30px; left: 40px; }
+        .cloud1::after { width: 100px; height: 100px; top: -50px; left: 80px; }
+
+        .cloud2 { width: 250px; height: 70px; top: 25%; right: -80px; animation-duration: 28s; }
+        .cloud2::before { width: 90px; height: 90px; top: -40px; left: 50px; }
+        .cloud2::after { width: 110px; height: 110px; top: -50px; left: 100px; }
+
+        @keyframes moveCloud {
+            0% { transform: translateX(0); }
+            50% { transform: translateX(50px); }
+            100% { transform: translateX(0); }
+        }
+
+        body.sunny .cloud-layer {
+            opacity: 0.1;
+        }
+
+        /* 雨点会随祈雨进度逐步减少并缩短 */
+        .rain-layer { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:1; opacity:1; transition:opacity .28s ease; }
+        .rain-drop { position:absolute; top:-44px; width:2px; height:26px; border-radius:2px; background:linear-gradient(to bottom,rgba(212,239,255,.25),rgba(158,218,255,.94)); box-shadow:0 0 4px rgba(176,228,255,.36); transform:rotate(12deg); animation:rainFall .95s linear infinite; will-change:transform,height,opacity; }
+        @keyframes rainFall { to { transform:translate3d(58px,125vh,0) rotate(12deg); } }
+        body.sunny .rain-layer { opacity:0; }
+
+        /* 太阳特效 */
+        .sun {
+            position: absolute;
+            top: -100px;
+            right: -100px;
+            width: 260px;
+            height: 260px;
+            background: radial-gradient(circle, #ffe066 0%, #f39c12 60%, transparent 80%);
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 3s ease, transform 3s ease;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        body.sunny .sun {
+            opacity: 1;
+            transform: translate(-30px, 50px);
+        }
+
+        /* 主容器布局适配 */
+        .app-container {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 16px) 16px;
+        }
+
+        /* 天气预报警示横幅 */
+        .weather-alert {
+            background: rgba(231, 76, 60, 0.85);
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 6px;
+            display: inline-block;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            transition: background 1s ease;
+        }
+
+        body.sunny .weather-alert {
+            background: rgba(46, 204, 113, 0.9);
+        }
+
+        /* 顶部看板 */
+        .header-panel {
+            width: 100%;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            padding: 12px 18px;
+            border-radius: 18px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            text-align: center;
+            border: 2px solid #e0c38c;
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: 800;
+            color: #332314;
+            letter-spacing: 0.5px;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            font-size: 13px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        .score-num {
+            color: #d35400;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        /* 进度条 */
+        .progress-box {
+            width: 100%;
+            height: 12px;
+            background: #e2e8f0;
+            border-radius: 6px;
+            margin-top: 8px;
+            overflow: hidden;
+            border: 1px solid #cbd5e1;
+            position: relative;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #f6d365 0%, #fda085 100%);
+            border-radius: 6px;
+            transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* 龙王浮动区域 */
+        .dragon-area {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: -10px;
+        }
+
+        .dragon-svg {
+            width: min(48vw, 190px);
+            height: auto;
+            animation: float 3.5s ease-in-out infinite;
+            filter: drop-shadow(0 6px 12px rgba(0,0,0,0.3));
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(1deg); }
+        }
+
+        /* 对话框 */
+        .dialog-box {
+            position: relative;
+            background: #ffffff;
+            padding: 8px 16px;
+            border-radius: 16px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #2c3e50;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border: 2px solid #56ccf2;
+            margin-bottom: 6px;
+            max-width: 270px;
+            line-height: 1.3;
+        }
+
+        .dialog-box::after {
+            content: '';
+            position: absolute;
+            bottom: -7px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 7px 7px 0;
+            border-style: solid;
+            border-color: #ffffff transparent;
+        }
+
+        /* 祈福案台与小人区域 */
+        .shrine-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 320px;
+            position: relative;
+        }
+
+        /* 案台 */
+        .altar {
+            width: 150px;
+            height: 40px;
+            background: #9b2c2c;
+            border-radius: 8px 8px 0 0;
+            border-top: 4px solid #f6e05e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-size: 13px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+            position: relative;
+            z-index: 2;
+        }
+
+        .incense-burner {
+            position: absolute;
+            top: -18px;
+            font-size: 20px;
+        }
+
+        /* 点击磕头的小人容器 */
+        .person-container {
+            cursor: pointer;
+            position: relative;
+            margin-top: -8px;
+            z-index: 3;
+            touch-action: manipulation;
+        }
+
+        .person-svg {
+            width: min(38vw, 150px);
+            height: auto;
+            display: block;
+        }
+
+        /* 提示点击指引 */
+        .click-tip {
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            white-space: nowrap;
+            pointer-events: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.85; transform: translateX(-50%) scale(1); }
+            50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+        }
+
+        /* SVG 动画绑定 */
+        .head-group {
+            transform-origin: 65px 70px;
+            transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .body-group {
+            transform-origin: 65px 95px;
+            transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        /* 磕头触发动作 */
+        .kowtow .head-group {
+            transform: rotate(50deg) translate(18px, 18px);
+        }
+
+        .kowtow .body-group {
+            transform: rotate(25deg) translate(8px, 6px);
+        }
+
+        /* 浮动提示词效果 */
+        .float-text {
+            position: absolute;
+            font-weight: 900;
+            color: #f6e05e;
+            font-size: 18px;
+            pointer-events: none;
+            animation: floatUp 0.75s ease-out forwards;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+            z-index: 99;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-55px) scale(1.25); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 预报乌云层（不带下雨特效） -->
+    <div class="cloud-layer">
+        <div class="cloud cloud1"></div>
+        <div class="cloud cloud2"></div>
+    </div>
+    <div class="rain-layer" id="rainLayer" aria-hidden="true"></div>
+    <div class="sun"></div>
+
+    <div class="app-container">
+        <!-- 顶部信息面板 -->
+        <div class="header-panel">
+            <div class="weather-alert" id="weatherAlert">⚠️ 天气预报：稍后有大到暴雨</div>
+            <div class="title" id="mainTitle">🙏 赶在下雨前祈求龙王别布雨</div>
+            <div class="status-row">
+                <span>防雨诚意进度</span>
+                <span><span class="score-num" id="score">0</span> / 100</span>
+            </div>
+            <div class="progress-box">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+        </div>
+
+        <!-- 龙王形象与动态对话 -->
+        <div class="dragon-area">
+            <div class="dialog-box" id="dragonDialog">天气预报说得对，本王正准备降雨！</div>
+            <svg class="dragon-svg" viewBox="0 0 200 200">
+                <path d="M 30 150 Q 90 180 150 150 Q 180 130 150 110 Q 90 130 30 110 Z" fill="#ffffff" opacity="0.85"/>
+                <path d="M 50 110 Q 100 50 150 110 Q 100 145 50 110" fill="#27ae60" stroke="#1e8449" stroke-width="4"/>
+                <path d="M 80 48 L 70 28 M 80 43 L 90 28" stroke="#f1c40f" stroke-width="5" stroke-linecap="round"/>
+                <path d="M 120 48 L 110 28 M 120 43 L 130 28" stroke="#f1c40f" stroke-width="5" stroke-linecap="round"/>
+                <circle cx="100" cy="68" r="34" fill="#27ae60" stroke="#1e8449" stroke-width="4"/>
+                <circle cx="87" cy="63" r="6" fill="#fff"/>
+                <circle cx="87" cy="63" r="3" fill="#000"/>
+                <circle cx="113" cy="63" r="6" fill="#fff"/>
+                <circle cx="113" cy="63" r="3" fill="#000"/>
+                <path d="M 75 73 Q 48 78 38 88" fill="none" stroke="#f1c40f" stroke-width="3" stroke-linecap="round"/>
+                <path d="M 125 73 Q 152 78 162 88" fill="none" stroke="#f1c40f" stroke-width="3" stroke-linecap="round"/>
+                <path d="M 90 78 Q 100 88 110 78" fill="none" stroke="#1e8449" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+        </div>
+
+        <!-- 祈福案台与磕头小人 -->
+        <div class="shrine-area">
+            <div class="altar">
+                <div class="incense-burner">🕯️</div>
+                祈求无雨
+            </div>
+
+            <!-- 可点击的磕头小人 -->
+            <div class="person-container" id="personBtn">
+                <svg class="person-svg" id="personSvg" viewBox="0 0 140 130">
+                    <path d="M 35 110 Q 65 125 95 110 Q 100 100 90 95 Q 65 105 40 95 Z" fill="#2980b9"/>
+
+                    <g class="body-group">
+                        <path d="M 45 70 L 85 70 L 88 100 L 42 100 Z" fill="#3498db"/>
+                        <circle cx="78" cy="80" r="6" fill="#f3a683"/>
+                    </g>
+
+                    <g class="head-group">
+                        <circle cx="65" cy="55" r="16" fill="#f3a683"/>
+                        <path d="M 68 53 Q 72 57 74 53" fill="none" stroke="#444" stroke-width="2"/>
+                        <path d="M 32 48 L 65 22 L 98 48 Z" fill="#e67e22"/>
+                    </g>
+                </svg>
+                <div class="click-tip" id="clickTip">👉 点击小人 预先防雨 👈</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let count = 0;
+        const targetCount = 100;
+        const personBtn = document.getElementById('personBtn');
+        const personSvg = document.getElementById('personSvg');
+        const scoreEl = document.getElementById('score');
+        const progressBar = document.getElementById('progressBar');
+        const dragonDialog = document.getElementById('dragonDialog');
+        const mainTitle = document.getElementById('mainTitle');
+        const weatherAlert = document.getElementById('weatherAlert');
+        const clickTip = document.getElementById('clickTip');
+
+        const rainLayer = document.getElementById("rainLayer");
+        const rainDrops = [];
+        const rainDropTotal = window.matchMedia("(max-width: 480px)").matches ? 48 : 64;
+        function initRain() {
+            for (let i = 0; i < rainDropTotal; i++) {
+                const drop = document.createElement("i");
+                drop.className = "rain-drop";
+                drop.style.left = (Math.random() * 104 - 4) + "%";
+                drop.style.animationDelay = (-Math.random() * 1.3) + "s";
+                drop.style.animationDuration = (0.56 + Math.random() * 0.62) + "s";
+                rainLayer.appendChild(drop);
+                rainDrops.push(drop);
+            }
+        }
+        function updateRain() {
+            const remaining = Math.max(0, 1 - count / targetCount);
+            const activeDrops = Math.ceil(rainDropTotal * remaining);
+            rainLayer.style.opacity = String(remaining);
+            rainDrops.forEach((drop, index) => {
+                const visible = index < activeDrops;
+                drop.hidden = !visible;
+                drop.style.height = (8 + remaining * 20) + "px";
+                drop.style.animationDuration = (0.62 + remaining * 0.55) + "s";
+            });
+            if (remaining === 0) rainLayer.hidden = true;
+        }
+        initRain();
+        updateRain();
+
+        // 阶段性龙王预报台词
+        function getDragonSaying(val) {
+            if (val < 15) return "本王法宝已准备就绪，待会就下雨！";
+            if (val < 35) return "看你提早来求，本王犹豫一下...";
+            if (val < 60) return "诚意挺足，雨云正在缓缓撤退！";
+            if (val < 85) return "这雨看来是不必下了，再加把劲！";
+            if (val < 100) return "最后几个！本王取消今天的降雨安排！";
+            return "☀️ 预报改写！今日取消降雨，转为晴天！";
+        }
+
+        function handleKowtow(e) {
+            if (count >= targetCount) return;
+
+            personSvg.classList.add('kowtow');
+            setTimeout(() => {
+                personSvg.classList.remove('kowtow');
+            }, 120);
+
+            count++;
+            updateRain();
+            scoreEl.innerText = count;
+
+            let progress = (count / targetCount) * 100;
+            progressBar.style.width = progress + '%';
+
+            dragonDialog.innerText = getDragonSaying(count);
+
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else if (!clientX) {
+                const rect = personBtn.getBoundingClientRect();
+                clientX = rect.left + rect.width / 2;
+                clientY = rect.top;
+            }
+
+            showFloatText(clientX, clientY);
+
+            if (count >= targetCount) {
+                triggerSunnyDay();
+            }
+        }
+
+        const words = ["诚意+1", "别下雨！", "功德+1", "预报取消", "求晴天"];
+        function showFloatText(x, y) {
+            const el = document.createElement('div');
+            el.className = 'float-text';
+            el.innerText = words[Math.floor(Math.random() * words.length)];
+
+            const offsetX = (Math.random() - 0.5) * 40;
+            el.style.left = (x + offsetX - 30) + 'px';
+            el.style.top = (y - 40) + 'px';
+
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 700);
+        }
+
+        function triggerSunnyDay() {
+            document.body.classList.add('sunny');
+            updateRain();
+            weatherAlert.innerText = "✅ 最新预报：降雨概率 0%，大晴天";
+            mainTitle.innerText = "☀️ 成功拦截！今天不下雨啦！";
+            clickTip.innerText = "龙王已收回雨云，出门放心！";
+            clickTip.style.animation = "none";
+            clickTip.style.background = "rgba(46, 204, 113, 0.85)";
+            try { window.parent.postMessage({ type: "rain-prayer-complete" }, "*"); } catch (_error) {}
+        }
+
+        let isTouched = false;
+        personBtn.addEventListener('touchstart', (e) => {
+            isTouched = true;
+            handleKowtow(e);
+        }, { passive: true });
+
+        personBtn.addEventListener('click', (e) => {
+            if (isTouched) {
+                isTouched = false;
+                return;
+            }
+            handleKowtow(e);
+        });
+    </script>
+</body>
+</html>
