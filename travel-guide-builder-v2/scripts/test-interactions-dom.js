@@ -117,6 +117,59 @@ test("initSourceLinks: 小红书唤起失败时给出可执行反馈", () => {
 });
 
 /* ── 2. initSearch ── */
+test("initSourceLinks: 具体笔记失败保留原帖及访问参数，可手动网页打开和复制", () => {
+  const url = "https://www.xiaohongshu.com/explore/note123?xsec_token=retained-token&xsec_source=pc_feed";
+  const dom = makeDom(`<a href="${url.replaceAll('&', '&amp;')}" data-xhs-link data-xhs-deeplink="xhsdiscover://item/note123">老街逐巷参观指南</a>`);
+  const doc = dom.window.document;
+  let attempts = 0;
+  const api = loadInteractions(dom);
+  const controller = api.initSourceLinks({root:doc,isMobile:()=>true,navigate:()=>{attempts++;throw Error("blocked");},toast:()=>{}});
+  doc.querySelector('[data-xhs-link]').click();
+  const fallback = doc.querySelector('.guide-xhs-fallback');
+  assert(fallback?.textContent.includes('老街逐巷参观指南'), 'legacy note links use their actual title, not 该地点');
+  const web = fallback.querySelector('a');
+  assert(web.href === url && web.target === '_blank' && !web.hasAttribute('data-xhs-link'), 'manual web fallback preserves exact note URL and is not intercepted');
+  const copy = [...fallback.querySelectorAll('button')].find(b=>b.textContent==='复制原链接');
+  doc.execCommand = () => false;
+  copy.click();
+  assert(fallback.querySelector('input')?.value === url, 'clipboard denial still exposes a selectable exact link');
+  [...fallback.querySelectorAll('button')].find(b=>b.textContent==='重试 App').click();
+  assert(attempts === 2 && doc.querySelectorAll('.guide-xhs-fallback').length === 1, 'retry reuses one local fallback');
+  controller.destroy();
+  assert(!doc.querySelector('.guide-xhs-fallback'), 'destroy removes recovery UI');
+  dom.window.close();
+});
+
+test("initSourceLinks: App 成功进入后台后不误回退，过期点击不覆盖新链接", () => {
+  const dom = makeDom('<a data-xhs-link data-xhs-keyword="地点甲" data-xhs-deeplink="xhsdiscover://item/a" href="https://www.xiaohongshu.com/explore/a">甲</a><a data-xhs-link data-xhs-keyword="地点乙" data-xhs-deeplink="xhsdiscover://item/b" href="https://www.xiaohongshu.com/explore/b">乙</a>');
+  const api = loadInteractions(dom), doc = dom.window.document, callbacks = [];
+  dom.window.setTimeout = callback => {callbacks.push(callback);return callbacks.length;};
+  dom.window.clearTimeout = () => {};
+  let visible = true; const navigations=[];
+  const controller = api.initSourceLinks({root:doc,isMobile:()=>true,isPageVisible:()=>visible,navigate:url=>navigations.push(url),toast:()=>{}});
+  const links=doc.querySelectorAll('[data-xhs-link]'); links[0].click(); links[1].click();
+  callbacks[0]();
+  assert(!doc.querySelector('.guide-xhs-fallback'), 'old timeout cannot show the wrong note');
+  visible=false;doc.dispatchEvent(new dom.window.Event('visibilitychange'));visible=true;callbacks[1]();
+  assert(!doc.querySelector('.guide-xhs-fallback') && navigations.length===2, 'returning from the App must not navigate again');
+  links[0].click();callbacks.at(-1)();
+  assert(doc.querySelector('.guide-xhs-fallback'), 'unconfirmed launch provides explicit recovery');
+  dom.window.dispatchEvent(new dom.window.Event('pagehide'));
+  assert(!doc.querySelector('.guide-xhs-fallback'), 'leaving the page cleans recovery state');
+  controller.destroy();dom.window.close();
+});
+
+test("initSourceLinks: 桌面与修饰点击保留原生链接", () => {
+  const dom=makeDom('<a href="https://www.xiaohongshu.com/explore/note" data-xhs-link data-xhs-deeplink="xhsdiscover://item/note">原帖</a>');
+  const api=loadInteractions(dom);let mobile=false,called=0;
+  const controller=api.initSourceLinks({root:dom.window.document,isMobile:()=>mobile,navigate:()=>called++,toast:()=>{}});
+  const link=dom.window.document.querySelector('a');
+  const desktop=new dom.window.MouseEvent('click',{bubbles:true,cancelable:true});link.dispatchEvent(desktop);
+  mobile=true;const modified=new dom.window.MouseEvent('click',{bubbles:true,cancelable:true,ctrlKey:true});link.dispatchEvent(modified);
+  assert(!desktop.defaultPrevented&&!modified.defaultPrevented&&called===0,'do not hijack desktop or modified navigation');
+  controller.destroy();dom.window.close();
+});
+
 test("initSearch: 无 DOM 元素时返回 undefined", () => {
   const dom = makeDom();
   const api = loadInteractions(dom);
@@ -349,6 +402,20 @@ test("initDayTabs: 首屏入口、深链接、历史恢复与销毁", () => {
 });
 
 /* ── 11. initExecutionLinks ── */
+test("initExecutionLinks: 卡片键盘定位不抢占内部链接、按钮和输入", () => {
+  const dom=makeDom('<article class="execution-item" data-place-id="p" data-day-number="1" tabindex="0"><a href="https://example.test/menu">菜单</a><button>图片</button><input><textarea></textarea><select><option>方式</option></select></article>');
+  const api=loadInteractions(dom),doc=dom.window.document;let focused=0;
+  doc.addEventListener('guide:focus-place',()=>focused++);api.initExecutionLinks({root:doc});
+  for(const node of doc.querySelectorAll('a,button,input,textarea,select')) for(const key of ['Enter',' ']) {
+    const event=new dom.window.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true});node.dispatchEvent(event);
+    assert(!event.defaultPrevented, 'internal control keeps its native keyboard action');
+  }
+  assert(focused===0,'nested controls must not trigger map focus');
+  const card=doc.querySelector('article');
+  for(const key of ['Enter',' ']) {const event=new dom.window.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true});card.dispatchEvent(event);assert(event.defaultPrevented,'card itself handles activation');}
+  assert(focused===2,'card activation still works');dom.window.close();
+});
+
 test("initExecutionLinks: 无元素时不抛异常", () => {
   const dom = makeDom();
   const api = loadInteractions(dom);

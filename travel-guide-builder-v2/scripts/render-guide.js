@@ -3,8 +3,9 @@ const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { readUtf8Json, validateTripData, runPipelineValidation } = require("./validate-trip-data.js");
-const { XHS_GENERAL_REQUIRED_COUNT, GUIDE_DATA_VERSION, PAGE_TEMPLATE_VERSION, RECOMMENDATION_CATEGORIES, GUIDE_THEMES } = require("./shared-constants.js");
+const { crc32 } = require("node:zlib");
+const { readUtf8Json, validateTripData, runPipelineValidation, isNonActionableSupplement } = require("./validate-trip-data.js");
+const { GUIDE_DATA_VERSION, PAGE_TEMPLATE_VERSION, RECOMMENDATION_CATEGORIES, GUIDE_THEMES } = require("./shared-constants.js");
 const { PUBLIC_PLACEHOLDERS, classifySupabaseKey } = require("./public-config.js");
 const { readOption, readCsvOption } = require("./cli-options.js");
 const { verifyTemplateLock } = require("./verify-template-lock.js");
@@ -13,8 +14,13 @@ const { renderFlightRecords } = require("../assets/modules/15-flight-records.js"
 const { scanElementBlock } = require("./html-fragment.js");
 const { visibleNearbyDay } = require("./nearby-policy.js");
 const { deliverArtifacts } = require("./render-artifacts.js");
+const { xiaohongshuIdentity } = require("./xiaohongshu-identity.js");
+const { READING_TOPICS, readingSelection, projectReadingReferences } = require("./supplementary-reading.js");
 
 const skillRoot = path.resolve(__dirname, "..");
+const GUIDE_ICONS = [192, 512].map(size => ({
+  src: `assets/guide-icon-${size}.png`, sizes: `${size}x${size}`, type: "image/png"
+}));
 const GUIDE_OUTPUT_ASSETS = Object.freeze(["assets/niumou-spritesheet.webp"]);
 const { digest } = require("./qa-evidence.js");
 const RENDER_USAGE = "Usage: node render-guide.js <trip-data.json> <guide.html> [--request=trip-request.json] [--brief=trip-brief.json] [--baseline=old-trip-data.json --allow-paths=path1,path2] [--baseline-html=old.html --frozen-modules=itinerary,route-map --freeze-action=fail|restore] [--allow-date-removal] [--map-config=private-map.json] [--supabase-config=private-supabase.json|--no-collaboration] [--public-source --public-collaboration]";
@@ -204,14 +210,13 @@ const copy = (value) => `<button type="button" class="copy-target" data-copy="${
 const xiaohongshuSearchUrl = (keyword) => `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(String(keyword || "").trim())}&source=web_explore_feed`;
 const xiaohongshuSearchDeeplink = (keyword) => `xhsdiscover://search/result?keyword=${encodeURIComponent(String(keyword || "").trim())}&target_search=notes&source=deeplink`;
 const xiaohongshuNoteDeeplink = (value) => {
-  try {
-    const url = new URL(String(value || ""));
-    if (!/(^|\.)xiaohongshu\.com$/i.test(url.hostname)) return "";
-    const noteId = url.pathname.match(/^\/(?:explore|search_result)\/([a-z0-9]+)/i)?.[1];
-    return noteId ? `xhsdiscover://item/${noteId}` : "";
-  } catch {
-    return "";
-  }
+  const noteId = xiaohongshuIdentity(value);
+  return noteId ? `xhsdiscover://item/${noteId}` : "";
+};
+const xiaohongshuNoteAttrs = (source, keyword = "") => {
+  const deeplink = source?.type === "xiaohongshu" ? xiaohongshuNoteDeeplink(source.url) : "";
+  const term = keyword.trim() || source?.reading?.title || source?.title || "";
+  return deeplink ? ` data-xhs-link data-xhs-keyword="${escapeHtml(term)}" data-xhs-deeplink="${escapeHtml(deeplink)}"` : "";
 };
 const xiaohongshuSearchLink = (keyword) => `<a href="${escapeHtml(xiaohongshuSearchUrl(keyword))}" data-xhs-link data-xhs-keyword="${escapeHtml(keyword)}" data-xhs-deeplink="${escapeHtml(xiaohongshuSearchDeeplink(keyword))}" target="_blank" rel="noopener noreferrer" aria-label="在小红书搜索 ${escapeHtml(keyword)}">小红书 ↗</a>`;
 const money = (value) => Number.isFinite(Number(value)) ? new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(Number(value)) : "待核验";
@@ -434,6 +439,8 @@ function renderDayNavigation(day, places, segments) {
       : needsLocalStart ? `<small class="route-current-location-hint">到达后请在地图中搜索此地点</small>` : "";
     let transfer = "";
     if (currentSegment) {
+      const plannedDuration = Number.isInteger(currentSegment.durationMinutes)
+        ? ` data-planned-duration="${currentSegment.durationMinutes}"` : "";
       const active = currentSegment.options.find(option => option.recommended) || currentSegment.options[0];
       if (active) {
         const interactive = currentSegment.options.length > 1;
@@ -443,8 +450,8 @@ function renderDayNavigation(day, places, segments) {
           return interactive ? `<button type="button" class="route-timeline-mode${selected ? " is-active" : ""}${option.recommended ? " is-recommended" : ""}" data-route-mode-option data-navigation-mode="${option.mode}" data-mode-label="${escapeHtml(option.label)}" data-action-label="${escapeHtml(option.actionLabel)}"${option.durationMinutes === null ? "" : ` data-duration-minutes="${option.durationMinutes}"`} data-navigation-url="${escapeHtml(option.url)}" aria-pressed="${selected}" aria-label="选择${escapeHtml(option.label)}方案${option.durationMinutes === null ? "" : `，约 ${option.durationMinutes} 分钟`}">${text}${rec}</button>`
             : `<span class="route-timeline-mode is-active" data-navigation-mode="${option.mode}">${text}${rec}</span>`;
         }).join("");
-        transfer = `<div class="route-timeline-transfer" data-navigation-segment data-from-place-id="${escapeHtml(currentSegment.fromPlaceId)}" data-to-place-id="${escapeHtml(currentSegment.toPlaceId)}" data-route-segment-index="${segmentIndex - 1}"${Number.isInteger(active.durationMinutes) ? ` data-default-duration="${active.durationMinutes}" data-selected-duration="${active.durationMinutes}"` : ""} data-selected-mode="${active.mode}">${chips}<a class="route-timeline-mode-launch" href="${escapeHtml(active.url)}" target="_blank" rel="noopener noreferrer" data-route-navigation-launch data-navigation-mode="${active.mode}" aria-label="${escapeHtml(active.actionLabel)}：在 Google Maps 中打开">${escapeHtml(active.actionLabel)}</a></div>`;
-      } else transfer = `<div class="route-timeline-transfer" data-navigation-segment><span class="route-timeline-mode is-muted">➜ ${compactMinutes(currentSegment.durationMinutes)}</span><span class="route-timeline-mode-label">交通方式待核验</span><small>${escapeHtml(currentSegment.reason)}</small></div>`;
+        transfer = `<div class="route-timeline-transfer" data-navigation-segment${plannedDuration} data-from-place-id="${escapeHtml(currentSegment.fromPlaceId)}" data-to-place-id="${escapeHtml(currentSegment.toPlaceId)}" data-route-segment-index="${segmentIndex - 1}"${Number.isInteger(active.durationMinutes) ? ` data-default-duration="${active.durationMinutes}" data-selected-duration="${active.durationMinutes}"` : ""} data-selected-mode="${active.mode}">${chips}<a class="route-timeline-mode-launch" href="${escapeHtml(active.url)}" target="_blank" rel="noopener noreferrer" data-route-navigation-launch data-navigation-mode="${active.mode}" aria-label="${escapeHtml(active.actionLabel)}：在 Google Maps 中打开">${escapeHtml(active.actionLabel)}</a></div>`;
+      } else transfer = `<div class="route-timeline-transfer" data-navigation-segment${plannedDuration}${Number.isInteger(currentSegment.durationMinutes) ? ` data-default-duration="${currentSegment.durationMinutes}" data-selected-duration="${currentSegment.durationMinutes}"` : ""}><span class="route-timeline-mode is-muted">➜ ${compactMinutes(currentSegment.durationMinutes)}</span><span class="route-timeline-mode-label">交通方式待核验</span><small>${escapeHtml(currentSegment.reason)}</small></div>`;
     }
     return `<li class="route-stop-row${finalNode ? " is-final" : ""}"><time class="route-stop-time"${exactMinute === null ? "" : ` data-initial-minutes="${exactMinute}" data-arrival-minutes="${routeClockMinutes(item?.startTime) ?? exactMinute}"`}>${escapeHtml(timeLabel)}</time><div class="route-stop-rail"><span>${index + 1}</span>${index < run.length - 1 ? "<i></i>" : ""}</div><div class="route-stop-body"><div class="route-stop-heading"><a class="route-place-link" href="${escapeHtml(mapUrl)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(label)}：在 Google Maps 中查看">${escapeHtml(label.replace(/（已确认）/g, ""))}</a>${local ? `<span>${escapeHtml(local)}</span>` : ""}<div class="route-stop-meta">${stay}${endpoint}${marker}</div></div>${localStart}${transfer}</div></li>`;
   }).join("")).join('<li class="route-timeline-break" aria-label="地面路线断点">路线断点</li>');
@@ -507,7 +514,7 @@ function renderArrival(data) {
       if (!card) return "";
       const ids = [...new Set(card.facts.flatMap(fact => fact.sourceIds))];
       const facts = card.facts.map(fact => `<div><dt>${escapeHtml(fact.label)}</dt><dd>${escapeHtml(fact.value)}${fact.observedAt ? `<small>观察：${escapeHtml(fact.observedAt)}</small>` : ""}</dd></div>`).join("");
-      return `<article class="airport-kit-card" data-airport-kit-kind="${kind}"><header><span class="airport-kit-number">0${number + 1}</span><h5>${title}</h5></header><p class="airport-kit-lead">${escapeHtml(card.lead)}</p><dl>${facts}</dl>${card.condition?.trim() ? `<p class="airport-kit-condition">${escapeHtml(card.condition)}</p>` : ""}${card.details?.trim() ? `<details><summary>报价与使用细节</summary><p>${escapeHtml(card.details)}</p></details>` : ""}<footer><span>小红书依据</span>${sourceLinks(ids)}</footer></article>`;
+      return `<article class="airport-kit-card" data-airport-kit-kind="${kind}"><header><span class="airport-kit-number">0${number + 1}</span><h5>${title}</h5></header><p class="airport-kit-lead">${escapeHtml(card.lead)}</p><dl>${facts}</dl>${card.condition?.trim() ? `<p class="airport-kit-condition">${escapeHtml(card.condition)}</p>` : ""}${card.details?.trim() ? `<details><summary>使用细节</summary><p>${escapeHtml(card.details)}</p></details>` : ""}<footer><span>补充阅读</span>${sourceLinks(ids)}</footer></article>`;
     }).join("");
     return `<li class="airport-kit-host"><section class="airport-kit" aria-label="${escapeHtml(kit.airport)}落地三件套"><header class="airport-kit-heading"><h4>机场落地三件套</h4><p>${escapeHtml(kit.airport)} → ${escapeHtml(kit.nextStop)}</p></header><div class="airport-kit-grid">${cards}</div></section></li>`;
   };
@@ -568,22 +575,26 @@ function renderRoute(data, routeCss, baiduLoader, googleLoader, mapConfig) {
     const source = data.sources.find((item) => item.id === target.image?.sourceId);
     const anchor = candidate.targetType === "recommendation" ? `recommendation-${target.id}` : `booking-venue-${target.id}`;
     const relation = { near_start: "起点附近", near_end: "终点附近", near_route: "途中候选", detour: "需要绕路" }[candidate.relation];
-    const noteDeeplink = source?.type === "xiaohongshu" ? xiaohongshuNoteDeeplink(source.url) : "";
-    const xhsAttrs = noteDeeplink ? ` data-xhs-link data-xhs-deeplink="${escapeHtml(noteDeeplink)}"` : "";
+    const xhsAttrs = xiaohongshuNoteAttrs(source, place.name);
     return `<article class="context-candidate" data-candidate-place="${escapeHtml(place.id)}" data-lat="${place.coordinates.latitude}" data-lng="${place.coordinates.longitude}">${target.image ? `<img src="${escapeHtml(target.image.src)}" alt="${escapeHtml(target.image.alt)}" loading="lazy">` : ""}<div><b>${escapeHtml(place.name)}</b><small>${escapeHtml(relation)}</small><p>${escapeHtml(target.reason)}</p><a href="#${escapeHtml(anchor)}">查看详情</a>${source?.url ? `<a href="${escapeHtml(source.url)}"${xhsAttrs} target="_blank" rel="noopener noreferrer">原帖 · ${escapeHtml(source.author || source.title)}</a>` : ""}</div></article>`;
   }).join("")}</div></div>`).join("");
   const nearbyPolicies = nearbyDays.map(entry => ({ dayNumber: entry.dayNumber, status: entry.status || "legacy", dayType: entry.dayType || "", reason: entry.reason || "", candidateCount: entry.candidates.length }));
-  const nearbyPanels = visibleNearbyDays.map(entry => `<div class="nearby-day-panel" data-nearby-panel="day-${entry.dayNumber}" hidden><div class="nearby-day-list">${entry.candidates.map(candidate => {
+  const nearbyRouteRank = { along_route: 0, same_area: 1, detour: 3 };
+  const nearbyRouteLabel = { along_route: "顺路", same_area: "同片区", detour: "需专程" };
+  const orderedNearbyCandidates = (candidates) => [...candidates].sort((a, b) =>
+    (nearbyRouteRank[a.routeFit] ?? 2) - (nearbyRouteRank[b.routeFit] ?? 2));
+  const nearbyPanels = visibleNearbyDays.map(entry => `<div class="nearby-day-panel" data-nearby-panel="day-${entry.dayNumber}" hidden><div class="nearby-day-list">${orderedNearbyCandidates(entry.candidates).map(candidate => {
     const target = candidate.targetType === "recommendation" ? recommendationById.get(candidate.targetId) : venueById.get(candidate.targetId);
     const place = places.get(target?.placeId);
     const source = data.sources.find(item => item.id === target?.image?.sourceId);
-    const noteDeeplink = source?.type === "xiaohongshu" ? xiaohongshuNoteDeeplink(source.url) : "";
-    const xhsAttrs = noteDeeplink ? ` data-xhs-link data-xhs-deeplink="${escapeHtml(noteDeeplink)}"` : "";
+    const xhsAttrs = xiaohongshuNoteAttrs(source, place?.name || "");
     if (!target || !place) return "";
     const anchor = candidate.targetType === "recommendation" ? `recommendation-${target.id}` : `booking-venue-${target.id}`;
     const window = entry.freeWindows?.[candidate.windowIndex];
     const timing = window ? `${window.startTime}–${window.endTime} · ${candidate.timing}` : candidate.timing;
-    return `<article class="nearby-day-card" data-nearby-card="${escapeHtml(place.id)}"><button type="button" class="nearby-day-photo" data-preview-image="${escapeHtml(target.image.src)}" aria-label="放大查看：${escapeHtml(place.name)}"><img src="${escapeHtml(target.image.src)}" alt="${escapeHtml(target.image.alt)}" loading="lazy"></button><div><strong>${escapeHtml(place.name)}</strong>${candidate.area ? `<small>${escapeHtml(candidate.area)}</small>` : ""}${timing ? `<small>${escapeHtml(timing)}</small>` : ""}<p>${escapeHtml(candidate.whyNow)}</p><div class="nearby-day-actions"><button type="button" data-focus-nearby="${escapeHtml(place.id)}" data-day-number="${entry.dayNumber}">在地图上看</button><a href="${escapeHtml(googleMapsSearchUrl(place))}" target="_blank" rel="noopener noreferrer">导航 ↗</a><a href="#${escapeHtml(anchor)}">查看详情</a>${source?.url ? `<a href="${escapeHtml(source.url)}"${xhsAttrs} target="_blank" rel="noopener noreferrer">原帖 · ${escapeHtml(source.author || source.title)}</a>` : ""}</div></div></article>`;
+    const location = [nearbyRouteLabel[candidate.routeFit], candidate.area].filter(Boolean).join(" · ");
+    const shopPick = candidate.shopPick ? `<p><b>进店看</b> ${escapeHtml(candidate.shopPick)}</p>` : "";
+    return `<article class="nearby-day-card" data-nearby-card="${escapeHtml(place.id)}"><button type="button" class="nearby-day-photo" data-preview-image="${escapeHtml(target.image.src)}" aria-label="放大查看：${escapeHtml(place.name)}"><img src="${escapeHtml(target.image.src)}" alt="${escapeHtml(target.image.alt)}" loading="lazy"></button><div><strong>${escapeHtml(place.name)}</strong>${location ? `<small>${escapeHtml(location)}</small>` : ""}${shopPick}${timing ? `<small>${escapeHtml(timing)}</small>` : ""}<p>${escapeHtml(candidate.whyNow)}</p><div class="nearby-day-actions"><button type="button" data-focus-nearby="${escapeHtml(place.id)}" data-day-number="${entry.dayNumber}">在地图上看</button><a href="${escapeHtml(googleMapsSearchUrl(place))}" target="_blank" rel="noopener noreferrer">导航 ↗</a><a href="#${escapeHtml(anchor)}">查看详情</a>${source?.url ? `<a href="${escapeHtml(source.url)}"${xhsAttrs} target="_blank" rel="noopener noreferrer">原帖 · ${escapeHtml(source.author || source.title)}</a>` : ""}</div></div></article>`;
   }).join("")}</div></div>`).join("");
   const isMainlandChina = (place) => place?.country === "中国" && !/(香港|澳门|台湾)/.test(`${place.city || ""} ${place.name || ""}`);
   const mapProvider = stops.length && stops.every(isMainlandChina) ? "baidu" : "google";
@@ -689,6 +700,66 @@ const baiduFailureText=(error)=>{
   return { routeOverview, mapSection };
 }
 
+function renderTravelDay(day, places, recommendations, sources, segments, hasMap, photographedPlaces) {
+  const mapPlaces = new Set(dayRouteNodes(day).flat().map(node => node.placeId).filter(id => places.get(id)?.coordinates));
+  const itemPlaces = new Set(day.items.map(item => item.placeId));
+  const arrivals = new Map(segments.map(segment => [segment.toNode.arrivalItem?.id || segment.toNode.itemId, segment]));
+  const occurrences = new Map();
+  for (const item of day.items) if (item.placeId) occurrences.set(item.placeId, (occurrences.get(item.placeId) || 0) + 1);
+  const directory = day.items.map((item, index) => {
+    const action = occurrences.get(item.placeId) > 1 ? item.activity : "";
+    const time = item.startTime || displayTime(item);
+    return `<button type="button" data-travel-jump="${escapeHtml(item.id)}"><span>${index + 1}</span><small>${escapeHtml(time)}</small><b>${escapeHtml(item.title)}</b>${action ? `<em>${escapeHtml(action)}</em>` : ""}</button>`;
+  }).join("");
+  const cards = day.items.map(item => {
+    const place = places.get(item.placeId);
+    const recommendation = recommendations.get(item.placeId);
+    const photos = photographedPlaces.has(item.placeId) ? []
+      : item.photos?.length ? item.photos : recommendation?.image ? [recommendation.image] : [];
+    if (item.placeId && photos.length) photographedPlaces.add(item.placeId);
+    const photoSources = photos.map(photo => {
+      const source = sources.find(entry => entry.id === photo.sourceId);
+      if (!/^https?:\/\//i.test(source?.url || "")) return "";
+      const label = source.type === "xiaohongshu" ? "小红书 ↗" : "图片出处 ↗";
+      const credit = [photo.credit || source.author || source.title, photo.license || source.license].filter(Boolean).join(" · ");
+      return `<a href="${escapeHtml(source.url)}"${xiaohongshuNoteAttrs(source, item.title)} target="_blank" rel="noopener noreferrer">${label}<small> ${escapeHtml(credit)}</small></a>`;
+    });
+    const slides = photos.map((photo, index) => `<figure class="sourced-recommendation-image"><button type="button" data-preview-image="${escapeHtml(photo.src)}" aria-label="放大查看：${escapeHtml(photo.alt)}"><img src="${escapeHtml(photo.src)}" alt="${escapeHtml(photo.alt)}" loading="lazy"></button><template data-travel-photo-credit>${photoSources[index]}</template></figure>`).join("");
+    const controls = photos.length > 1 ? `<div class="travel-photo-controls"><button type="button" data-travel-photo-step="-1" disabled>上一张</button><span data-travel-photo-count aria-live="polite">1 / ${photos.length}</span><button type="button" data-travel-photo-step="1">下一张</button></div>` : "";
+    const gallery = photos.length ? `<div data-travel-gallery aria-label="地点照片"><div class="travel-photo-track" data-travel-photo-track${controls ? ' tabindex="0" aria-label="滑动查看地点照片"' : ""}>${slides}</div>${controls}</div>` : "";
+    const products = recommendation?.productPicks || [];
+    const menu = recommendation?.menuItems || [];
+    const isDetail = line => line && line.trim() !== item.activity?.trim() && !/^交通查询[：:]/.test(line.trim()) && !isNonActionableSupplement(line);
+    const steps = (item.details || []).filter(isDetail);
+    const notes = (item.notes || []).filter(isDetail);
+    const description = recommendation?.reason === item.activity ? "" : recommendation?.reason;
+    const detail = [...new Set([description, ...steps].filter(isDetail))];
+    const picks = products.map(pick => `<li><strong>${escapeHtml(pick.name)}</strong> · ${escapeHtml(pick.reason)}${pick.where ? ` · ${escapeHtml(pick.where)}` : ""}${pick.priceObserved ? ` · ${escapeHtml(pick.priceObserved)}` : ""}${renderSourcedImage(pick.image, sources)} ${sourceLinks(pick.sourceIds)}</li>`).join("");
+    const dishes = menu.map(dish => `<li><strong>${escapeHtml(dish.name)}</strong> · ${escapeHtml(dish.reason)}${dish.priceObserved ? ` · ${escapeHtml(dish.priceObserved)}` : ""} ${sourceLinks(dish.sourceIds)}</li>`).join("");
+    const detailId = `travel-details-${escapeHtml(item.id)}`;
+    const details = detail.length || picks || dishes || item.referenceImages?.length || notes.length
+      ? `<div class="travel-stop-details" id="${detailId}" hidden>${detail.length ? renderInformation(detail) : ""}${picks ? `<ul>${picks}</ul>` : ""}${dishes ? `<ul>${dishes}</ul>` : ""}${renderItemReferenceImages(item.referenceImages)}${renderItemNotes(notes)}</div>` : "";
+    const detailLabel = picks ? "购物清单" : item.type === "transport" || /机场|航站楼|airport/i.test(item.title) ? "操作步骤" : "详细介绍";
+    const actions = [
+      details ? `<button type="button" data-travel-detail-toggle aria-expanded="false" aria-controls="${detailId}">${detailLabel}</button>` : "",
+      place?.navigationEnabled !== false && place?.coordinates ? `<a href="https://www.google.com/maps/dir/?api=1&amp;destination=${encodeURIComponent(`${place.coordinates.latitude},${place.coordinates.longitude}`)}" target="_blank" rel="noopener noreferrer">导航 ↗</a>` : "",
+      hasMap && mapPlaces.has(item.placeId) ? `<button type="button" data-travel-map-place="${escapeHtml(item.placeId)}">地图定位</button>` : "",
+      recommendation?.officialUrl && !(item.links || []).some(link => link.url === recommendation.officialUrl) ? `<a href="${escapeHtml(recommendation.officialUrl)}" target="_blank" rel="noopener noreferrer">官网 ↗</a>` : "",
+      renderItemLinks(item.links),
+      sourceLinks(item.sourceIds),
+      photos.length ? `<span data-travel-photo-source${photoSources[0] ? "" : " hidden"}>${photoSources[0]}</span>` : ""
+    ].filter(Boolean).join("");
+    const segment = arrivals.get(item.id);
+    const verified = (segment?.options || []).filter(option => Number.isFinite(option.durationMinutes));
+    const transfer = verified.length ? `<div class="travel-transfer" aria-label="前往${escapeHtml(item.title)}">${verified.map(option => `<a class="travel-transfer-option${option.recommended ? " is-recommended" : ""}" href="${escapeHtml(option.url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(option.actionLabel)}，${minutesText(option.durationMinutes)}${option.recommended ? "，推荐" : ""}">${ROUTE_MODE_META[option.mode].icon} ${ROUTE_MODE_META[option.mode].label} ${minutesText(option.durationMinutes)}${option.recommended ? " · 荐" : ""}</a>`).join("")}</div>` : "";
+    return `${transfer}<article class="travel-stop" data-travel-item="${escapeHtml(item.id)}" data-travel-place="${escapeHtml(item.placeId || "")}" tabindex="-1"><header><small>${escapeHtml(displayTime(item))}</small><h4>${escapeHtml(item.title)}</h4></header>${gallery}<div class="travel-stop-copy">${item.activity ? `<p>${escapeHtml(item.activity)}</p>` : ""}${actions ? `<div class="travel-stop-actions">${actions}</div>` : ""}${details}</div></article>`;
+  }).join("");
+  const fallback = [...mapPlaces].map(id => itemPlaces.has(id)
+    ? `<button type="button" data-travel-fallback-place="${escapeHtml(id)}">${escapeHtml(places.get(id).name)}</button>`
+    : `<span>${escapeHtml(places.get(id).name)}</span>`).join("");
+  return `<section data-travel-day hidden>${fallback ? `<nav class="travel-map-fallback" aria-label="停靠点定位">${fallback}</nav>` : ""}<div class="travel-day-layout"><nav class="travel-stop-directory" aria-label="当天地点">${directory}</nav><div class="travel-stop-list">${cards}</div></div></section>`;
+}
+
 function renderDays(data, collaborationEnabled = false, mapSection = "") {
   const places = placeMapOf(data);
   const venueSuggestionsById = new Map((data.venueSuggestions || []).map((item) => [item.id, item]));
@@ -710,6 +781,8 @@ function renderDays(data, collaborationEnabled = false, mapSection = "") {
     }).filter(Boolean).join("");
     return entries ? `<aside class="day-recommendation-placement" data-recommendation-placement="${escapeHtml(placement.id)}"><h4>${escapeHtml(placementLabels[placement.slot])}</h4><ul>${entries}</ul></aside>` : "";
   };
+  const travelRecommendations = new Map([...(data.venueSuggestions || []), ...(data.recommendations || [])].filter(item => item.placeId).map(item => [item.placeId, item]));
+  const photographedPlaces = new Set();
   const renderedAddressPlaceIds = new Set();
   const calendarMode = data.calendar?.mode === "timed" ? "timed" : "daily";
   const calendarEvents = [];
@@ -769,11 +842,12 @@ function renderDays(data, collaborationEnabled = false, mapSection = "") {
       .filter(([, items]) => Array.isArray(items) && items.length)
       .map(([title, items]) => `<div><h4>${title}</h4>${textList(items)}</div>`).join("");
     const dayNotes = noteGroups ? `<div class="day-notes">${noteGroups}</div>` : "";
-    return `<article class="day card" role="tabpanel" id="day-${day.dayNumber}" aria-labelledby="day-tab-${day.dayNumber}" data-day-panel="${day.dayNumber}"${dateAttr}${day.kind ? ` data-kind="${escapeHtml(day.kind)}"` : ""}${dayIndex ? " hidden" : ""}><header class="day-overview"><div class="day-overview-top"><div class="day-label"><span>Day ${day.dayNumber}</span><small>${visibleDate}</small></div><span class="day-weather-badge" data-day-weather>天气待刷新</span><div class="day-overview-actions">${overviewActions}</div></div><h3>${escapeHtml(day.city)}｜${escapeHtml(day.theme)}</h3><p><b>住宿：</b>${escapeHtml(day.accommodation.label)}${accommodationNote}</p></header>${routeBlock}<section class="day-timeline-block" aria-label="详细时间线"><h4>详细时间线</h4><ol class="timeline">${slots}</ol></section>${dayNotes}<div>${sourceLinks(day.sourceIds)}</div></article>`;
+    const travelDay = renderTravelDay(day, places, travelRecommendations, data.sources, dayNavigationSegments(day, places), Boolean(mapSection), photographedPlaces);
+    return `<article class="day card" role="tabpanel" id="day-${day.dayNumber}" aria-labelledby="day-tab-${day.dayNumber}" data-day-panel="${day.dayNumber}"${dateAttr}${day.kind ? ` data-kind="${escapeHtml(day.kind)}"` : ""}${dayIndex ? " hidden" : ""}><header class="day-overview"><div class="day-overview-top"><div class="day-label"><span>Day ${day.dayNumber}</span><small>${visibleDate}</small></div><span class="day-weather-badge" data-day-weather>天气待刷新</span><div class="day-overview-actions">${overviewActions}</div></div><h3>${escapeHtml(day.city)}｜${escapeHtml(day.theme)}</h3><p><b>住宿：</b>${escapeHtml(day.accommodation.label)}${accommodationNote}</p></header>${routeBlock}<section class="day-timeline-block" aria-label="详细时间线"><h4>详细时间线</h4><ol class="timeline">${slots}</ol></section>${dayNotes}<div>${sourceLinks(day.sourceIds)}</div>${travelDay}</article>`;
   }).join("");
   const calendarLabel = calendarMode === "daily" ? `导出全部 ${data.days.length} 天行程（ICS）` : "导出确定时间安排（ICS）";
   const calendar = data.features.calendarExport ? `<div class="itinerary-tools"><button type="button" data-calendar-export>${calendarLabel}</button><span data-calendar-status role="status" aria-live="polite">${calendarEvents.length ? "" : "暂无可导出的行程"}</span></div><script type="application/json" data-calendar-events data-calendar-mode="${calendarMode}">${safeJson(calendarEvents)}</script>` : "";
-  return `<section class="guide-section" data-guide-module="itinerary" id="itinerary" data-nav-label="逐日行程"><h2>${escapeHtml(moduleTitle("itinerary"))}</h2>${calendar}<div class="itinerary-day-tabs" role="tablist" aria-label="选择行程日期" data-day-tabs>${tabs}</div>${mapSection}<div class="itinerary-day-panels" data-day-panels>${cards}</div></section>`;
+  return `<section class="guide-section" data-guide-module="itinerary" id="itinerary" data-nav-label="逐日行程"><h2>${escapeHtml(moduleTitle("itinerary"))}</h2>${calendar}<div class="itinerary-date-bar"><div class="itinerary-day-tabs" role="tablist" aria-label="选择行程日期" data-day-tabs>${tabs}</div><button class="travel-mobile-directory-button" type="button" data-travel-directory-open aria-haspopup="dialog" aria-controls="travel-directory-dialog">查看当天行程</button></div><dialog class="travel-directory-dialog" id="travel-directory-dialog" data-travel-directory-dialog aria-labelledby="travel-directory-title"><header><h3 id="travel-directory-title">当天行程</h3><button type="button" data-travel-directory-close aria-label="关闭当天行程">×</button></header><div data-travel-directory-list></div></dialog><h3 class="travel-day-title" data-travel-day-title hidden></h3>${mapSection}<div class="itinerary-day-panels" data-day-panels>${cards}</div></section>`;
 }
 
 function renderTransport(data) {
@@ -797,15 +871,16 @@ function renderExchangeDialog(data) {
   if (!data.features.exchange) return "";
   const budget = data.budget;
   const currencies = budget.targetCurrencies;
-  const choices = currencies.map((currency, index) => `<button type="button" data-exchange-currency="${escapeHtml(currency)}" aria-pressed="${index === 0}">${escapeHtml(currencyChinese(currency))} <small>${escapeHtml(currency)}</small></button>`).join("");
-  return `<dialog class="guide-exchange-dialog" id="guide-exchange-dialog" data-exchange-dialog aria-labelledby="guide-exchange-title"><section class="guide-quickcalc" data-exchange-tool data-exchange-base="CNY" data-exchange-targets="${escapeHtml(currencies.join(","))}"><header class="guide-exchange-dialog__head"><h2 id="guide-exchange-title">汇率换算</h2><button type="button" data-exchange-dialog-close aria-label="关闭汇率换算">×</button></header><div class="guide-quickcalc__currencies" role="group" aria-label="选择当地货币">${choices}</div><div class="guide-quickcalc__rate-line"><div class="guide-quickcalc__rate-values"><span data-exchange-rate-base>刷新后获取参考汇率</span><span data-exchange-rate-usd hidden></span></div><button type="button" data-exchange-refresh>刷新汇率</button></div><div class="guide-quickcalc__fields"><label class="guide-quickcalc__field"><span data-exchange-local-label>当地货币 · ${escapeHtml(currencyChinese(currencies[0]))} ${escapeHtml(currencies[0])}</span><input type="number" inputmode="decimal" min="0" step="any" value="100000" data-exchange-local-input aria-label="当地货币金额"></label><div class="guide-quickcalc__arrow" aria-hidden="true">↓</div><label class="guide-quickcalc__field guide-quickcalc__field--cny"><span>约合人民币 · CNY</span><input type="number" inputmode="decimal" min="0" step="any" placeholder="刷新后显示" data-exchange-input aria-label="人民币金额"></label></div><div class="guide-quickcalc__mnemonic"><strong>心算方法</strong><p data-exchange-mnemonic>刷新汇率后生成</p><small data-exchange-mnemonic-example hidden></small></div><p class="guide-quickcalc__status" data-exchange-status aria-live="polite" hidden></p><p class="guide-quickcalc__time" data-exchange-last-updated hidden></p></section></dialog>`;
+  const codes = [...new Set([...currencies.filter(code => code !== "USD" && code !== "CNY"), "USD", "CNY"])];
+  const flags = { USD: "🇺🇸", CNY: "🇨🇳", LAK: "🇱🇦", VND: "🇻🇳", THB: "🇹🇭", JPY: "🇯🇵", KRW: "🇰🇷", EUR: "🇪🇺", GBP: "🇬🇧", CHF: "🇨🇭", SGD: "🇸🇬", MYR: "🇲🇾", IDR: "🇮🇩", AUD: "🇦🇺", CAD: "🇨🇦", HKD: "🇭🇰", TWD: "🇹🇼" };
+  const choices = selected => codes.map(code => `<option value="${escapeHtml(code)}"${code === selected ? " selected" : ""}>${flags[code] || ""} ${escapeHtml(code)}</option>`).join("");
+  return `<dialog class="guide-exchange-dialog" id="guide-exchange-dialog" data-exchange-dialog aria-labelledby="guide-exchange-title"><section class="guide-quickcalc" data-exchange-tool data-exchange-base="CNY" data-exchange-targets="${escapeHtml(currencies.join(","))}"><header class="guide-exchange-dialog__head"><h2 id="guide-exchange-title">汇率换算</h2><button type="button" data-exchange-dialog-close aria-label="关闭汇率换算">×</button></header><div class="guide-quickcalc__fields"><label class="guide-quickcalc__field"><span>金额</span><div class="guide-quickcalc__amount"><input type="text" inputmode="decimal" value="100" data-exchange-local-input aria-label="待换算金额"><select data-exchange-from aria-label="原币种">${choices(currencies[0])}</select></div></label><button class="guide-quickcalc__swap" type="button" data-exchange-swap aria-label="交换换算方向">⇅</button><label class="guide-quickcalc__field"><span>换算为</span><div class="guide-quickcalc__amount guide-quickcalc__amount--result"><input type="text" readonly data-exchange-input placeholder="—" aria-label="换算结果" aria-live="polite"><select data-exchange-to aria-label="目标币种">${choices("CNY")}</select></div></label></div><div class="guide-quickcalc__rate-values"><span data-exchange-rate-base></span><span data-exchange-rate-usd hidden></span></div><div class="guide-quickcalc__mnemonic" hidden><p data-exchange-mnemonic></p></div><p class="guide-quickcalc__status" data-exchange-status aria-live="polite" hidden></p><div class="guide-quickcalc__footer"><p class="guide-quickcalc__time" data-exchange-last-updated hidden></p><button type="button" data-exchange-refresh>刷新汇率 ↻</button></div></section></dialog>`;
 }
 
 function renderSourcedImage(image, sources = []) {
   if (!image) return "";
   const source = sources.find((entry) => entry.id === image.sourceId);
-  const noteDeeplink = source?.type === "xiaohongshu" ? xiaohongshuNoteDeeplink(source.url) : "";
-  const xhsAttrs = noteDeeplink ? ` data-xhs-link data-xhs-deeplink="${escapeHtml(noteDeeplink)}"` : "";
+  const xhsAttrs = xiaohongshuNoteAttrs(source, image.alt || "");
   const attribution = source?.url ? `<a href="${escapeHtml(source.url)}"${xhsAttrs} target="_blank" rel="noopener noreferrer">图片：${escapeHtml(source.type === "xiaohongshu" ? `小红书 · ${source.author || source.title}` : source.title)} ↗</a>` : "";
   return `<figure class="sourced-recommendation-image"><button type="button" data-preview-image="${escapeHtml(image.src)}" aria-label="放大查看：${escapeHtml(image.alt)}"><img src="${escapeHtml(image.src)}" alt="${escapeHtml(image.alt)}" loading="lazy"></button><figcaption>${attribution}</figcaption></figure>`;
 }
@@ -906,51 +981,79 @@ function renderBookingLedger(data, collaborationEnabled = false) {
   const experienceCount = recommendationCount + (data.venueSuggestions || []).length + (data.localKnowledge || []).length;
   return `<section class="guide-section" data-guide-module="bookings" id="bookings" data-nav-label="预定清单"><h2>${escapeHtml(moduleTitle("bookings"))}</h2><p class="local-note">${note}</p><div class="booking-ledger-summary"><span>活动与门票 ${entries.filter((entry) => entry.category === "activity").length} 项</span><span>餐厅与用餐 ${entries.filter((entry) => entry.category === "restaurant").length} 项</span><span>当地体验 ${experienceCount} 项</span></div>${content}${renderRecommendations(data)}</section>`;
 }
-function renderSources(data) {
-  const orderedSources = [...data.sources].sort((left, right) => Number(left.id) - Number(right.id));
-  const isGeneralXhs = (source) => source.type === "xiaohongshu" && (source.scope || "general") === "general";
-  const generalXhs = orderedSources.filter(isGeneralXhs);
-  const sourceText = (source) => `${source.title || ""} ${(source.topics || []).join(" ")}`;
-  const isCultureSource = (source) => /文化|习俗|礼仪|问候|称谓|语言区域|拍照许可|拍照限制|安静空间/i.test(sourceText(source));
-  const displayGroups = [
-    { id: "baseline", label: "行程原始资料", match: (source) => source.type === "local" },
-    { id: "transport", label: "入境与交通", match: (source) => !isCultureSource(source) && /入境|出境|签证|护照|过境|机场|航空|铁路|火车|交通|停车|车票|SBB|SNCF/i.test(sourceText(source)) },
-    { id: "booking", label: "景点与预约", match: (source) => !isCultureSource(source) && /景点|票务|预约|博物馆|美术馆|教堂|大教堂|铁塔|凯旋门|圣母院/i.test(sourceText(source)) },
-    { id: "dining", label: "餐饮与购物", match: (source) => !isCultureSource(source) && /餐饮|餐厅|咖啡|美食|购物|门店|巧克力|香水|营业时间/i.test(sourceText(source)) },
-    { id: "culture", label: "文化习俗", match: isCultureSource },
-    { id: "data", label: "天气与汇率", match: (source) => /天气|气候|汇率|货币|Open-Meteo|ECB/i.test(sourceText(source)) },
-    { id: "other", label: "其他官方资料", match: () => true }
-  ];
+function renderSources(data, selection) {
+  const { sources, numbers } = selection;
   const renderItem = (source) => {
-    const title = escapeHtml(source.title);
-    const noteDeeplink = source.type === "xiaohongshu" ? xiaohongshuNoteDeeplink(source.url) : "";
-    const xhsAttrs = noteDeeplink ? ` data-xhs-link data-xhs-deeplink="${escapeHtml(noteDeeplink)}"` : "";
+    const title = escapeHtml(source.reading.title);
+    const xhsAttrs = xiaohongshuNoteAttrs(source);
     const link = /^https?:\/\//i.test(String(source.url || "")) ? `<a href="${escapeHtml(source.url)}"${xhsAttrs} target="_blank" rel="noopener noreferrer">${title}</a>` : title;
-    return `<li value="${source.id}" id="source-${source.id}">${link}</li>`;
+    const number = numbers.get(source.id);
+    return `<li value="${number}" id="source-${number}">${link}<p>${escapeHtml(source.reading.value)}</p></li>`;
   };
-  const remaining = orderedSources.filter((source) => !isGeneralXhs(source));
-  const grouped = displayGroups.map((group) => {
-    const sources = remaining.filter(group.match);
-    sources.forEach((source) => remaining.splice(remaining.indexOf(source), 1));
-    return { ...group, sources };
-  }).filter((group) => group.sources.length);
-  const shortfall = generalXhs.length < XHS_GENERAL_REQUIRED_COUNT ? `<p data-xhs-shortfall-reason>${escapeHtml(data.researchAudit.xiaohongshuShortfallReason || "受登录墙或资料可用性限制，未达到目标数量")}</p>` : "";
-  const sourceGroups = grouped.map((group) => `<section class="source-group" data-source-group="${group.id}"><h3>${group.label}<small>${group.sources.length} 项</small></h3><ol class="source-list">${group.sources.map(renderItem).join("")}</ol></section>`).join("");
-  const xhsGroup = `<section class="source-group" data-source-group="xiaohongshu" data-xhs-required-count="${XHS_GENERAL_REQUIRED_COUNT}" data-xhs-read-count="${generalXhs.length}"><h3>小红书经验<small>${generalXhs.length} 项</small></h3>${shortfall}<ol class="source-list">${generalXhs.map(renderItem).join("")}</ol></section>`;
-  return `<section class="guide-section" data-guide-module="sources" id="sources" data-nav-label="资料来源"><h2>${escapeHtml(moduleTitle("sources"))}</h2><div class="source-groups">${sourceGroups}${xhsGroup}</div></section>`;
+  const groups = READING_TOPICS.map((topic, index) => {
+    const items = sources.filter(source => source.reading.topic === topic);
+    return items.length ? `<section class="source-group" data-source-group="reading-${index}"><h3>${topic}<small>${items.length} 项</small></h3><ol class="source-list">${items.map(renderItem).join("")}</ol></section>` : "";
+  }).join("");
+  return `<section class="guide-section" data-guide-module="sources" id="sources" data-nav-label="补充阅读"${sources.length ? "" : " hidden"}><h2>${escapeHtml(moduleTitle("sources"))}</h2><div class="source-groups">${groups}</div></section>`;
 }
 
-function renderSearch(data) {
-  const index = data.features.sourceIndex ? data.sourceIndex : [];
+// Give each guide a stable variation of the base route icon by tinting its PNG palette.
+function tintGuideIcon(template, identity) {
+  const png = fs.readFileSync(path.join(skillRoot, template));
+  const color = [16, 52, 68].map((base, index) => base + parseInt(identity.slice(index * 2, index * 2 + 2), 16) % 50);
+  for (let offset = 8; offset + 12 <= png.length;) {
+    const size = png.readUInt32BE(offset);
+    const start = offset + 8;
+    const end = start + size;
+    if (png.toString("ascii", offset + 4, start) === "PLTE") {
+      for (let pixel = start; pixel < end; pixel += 3) {
+        const weight = Math.max(0, Math.min(1, (200 - png[pixel]) / 183));
+        [17, 74, 90].forEach((base, channel) => {
+          png[pixel + channel] = Math.max(0, Math.min(255, Math.round(png[pixel + channel] + (color[channel] - base) * weight)));
+        });
+      }
+      png.writeUInt32BE(crc32(png.subarray(offset + 4, end)), end);
+      return png;
+    }
+    offset = end + 4;
+  }
+  throw new Error(`桌面图标模板缺少 PNG 调色板：${template}`);
+}
+
+function guideInstallAssets(meta, output) {
+  const page = path.basename(output);
+  const file = `guide-${digest(page).slice(0, 16)}.webmanifest`;
+  const shortName = [...meta.destination.trim()].slice(0, 9).join("") + "攻略";
+  const identity = digest(meta.guideId).slice(0, 24);
+  const icons = GUIDE_ICONS.map(icon => ({ ...icon, src: icon.src.replace("guide-icon-", `guide-${identity}-`) }));
+  const manifest = {
+    id: `./?guide=${identity}`,
+    name: meta.title, short_name: shortName, lang: "zh-CN",
+    start_url: `./${encodeURIComponent(page)}`, scope: "./", display: "standalone",
+    icons
+  };
+  const head = `<link rel="manifest" href="${file}"><link rel="apple-touch-icon" href="${icons[0].src}"><link rel="icon" type="image/png" sizes="${icons[1].sizes}" href="${icons[1].src}"><meta name="apple-mobile-web-app-title" content="${escapeHtml(shortName)}">`;
+  const files = Object.fromEntries(icons.map((icon, index) => [icon.src, tintGuideIcon(GUIDE_ICONS[index].src, identity)]));
+  files[file] = JSON.stringify(manifest, null, 2) + "\n";
+  return { files, head };
+}
+
+function renderSearch(data, selection) {
+  const index = data.features.sourceIndex ? selection.index : [];
   const sourceIndex = data.features.sourceIndex ? `<script id="travel-source-index" type="application/json">${safeJson(index)}</script>` : "";
-  const advancedDisabled = data.features.sourceIndex ? "" : ' disabled title="本攻略未建立资料来源索引"';
+  const advancedDisabled = data.features.sourceIndex ? "" : ' disabled title="本攻略暂无补充阅读"';
   const searchIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>';
   const todayIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.2 20 4l-6.7 16-2.2-6.9L4 12.2Z"></path></svg>';
   const exchangeAction = data.features.exchange ? '<button id="guide-exchange-trigger" class="guide-floating-action" type="button" data-floating-action="exchange" aria-label="汇率换算" aria-haspopup="dialog" aria-controls="guide-exchange-dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M15.5 8.5c-.7-.8-1.8-1.2-3.2-1.2-1.7 0-2.8.8-2.8 2s1 1.8 2.7 2.1l1.4.3c1.6.3 2.4.9 2.4 2s-1.2 2-3 2c-1.4 0-2.7-.5-3.5-1.5M12 5.8v12.4"></path></svg><span>汇率</span></button>' : '';
-  return `<div class="guide-floating-tools" data-guide-floating-tools><div id="guide-floating-actions" class="guide-floating-actions" data-guide-floating-actions aria-label="攻略快捷操作" aria-hidden="true" inert><button id="guide-today-trigger" class="guide-floating-action guide-today-trigger" type="button" data-floating-action="today" data-day-jump="" aria-label="返回今日行程" hidden>${todayIcon}<span>今天</span></button>${exchangeAction}<button id="guide-search-trigger" class="guide-floating-action guide-search-trigger" type="button" data-floating-action="search" aria-label="搜索攻略" aria-controls="guide-search-panel" aria-expanded="false">${searchIcon}<span>搜索</span></button></div><button class="guide-floating-toggle" type="button" data-guide-floating-toggle aria-label="打开快捷操作" aria-controls="guide-floating-actions" aria-expanded="false"><span aria-hidden="true" data-guide-floating-toggle-icon>•••</span></button></div><aside id="guide-search-panel" class="guide-search-panel" hidden aria-labelledby="guide-search-title"><div class="guide-search-head"><strong id="guide-search-title">搜索攻略</strong><button id="guide-search-close" class="guide-search-close" type="button" aria-label="关闭搜索">×</button></div><form id="guide-search-form" class="guide-search-form" role="search"><input id="guide-search-input" type="search" autocomplete="off" placeholder="输入关键词" aria-label="搜索攻略关键词"><button id="guide-search-clear" class="guide-search-clear" type="button">清空</button><button class="guide-search-submit" type="submit">搜索</button><button id="guide-search-advanced" class="guide-search-advanced" type="button"${advancedDisabled}>高级搜索</button></form><div class="guide-search-navigation"><button id="guide-search-prev" type="button" disabled>上一个</button><span id="guide-search-count">0 / 0</span><button id="guide-search-next" type="button" disabled>下一个</button></div><div id="guide-search-results" class="guide-search-results" aria-live="polite"><p class="guide-search-hint"><span>普通搜索精确匹配攻略正文；</span><span>高级搜索模糊匹配资料来源。</span></p></div></aside>${sourceIndex}`;
+  const homeScreenAction = '<button type="button" class="guide-floating-action" data-floating-action="home-screen" data-guide-home-screen aria-haspopup="dialog" aria-controls="guide-home-screen-dialog" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="2"></rect><path d="M12 7v7m-3.5-3.5h7"></path></svg><span>添加到手机桌面</span></button>';
+  const homeScreenDialog = '<dialog id="guide-home-screen-dialog" class="guide-home-screen-dialog" data-guide-home-screen-dialog aria-labelledby="guide-home-screen-title"><h2 id="guide-home-screen-title">添加到手机桌面</h2><p data-guide-home-screen-help></p><form method="dialog"><button type="submit" data-guide-home-screen-close>关闭</button></form></dialog>';
+  return `<div class="guide-floating-tools" data-guide-floating-tools><div id="guide-floating-actions" class="guide-floating-actions" data-guide-floating-actions aria-label="攻略快捷操作" aria-hidden="true" inert><button type="button" class="guide-floating-action" data-floating-action="travel-mode" data-travel-toggle hidden><span aria-hidden="true">↔</span><span data-travel-mode-label>进入出行模式</span></button><button id="guide-today-trigger" class="guide-floating-action guide-today-trigger" type="button" data-floating-action="today" data-day-jump="" aria-label="返回今日行程" hidden>${todayIcon}<span>今天</span></button>${exchangeAction}<button id="guide-search-trigger" class="guide-floating-action guide-search-trigger" type="button" data-floating-action="search" aria-label="搜索攻略" aria-controls="guide-search-panel" aria-expanded="false">${searchIcon}<span>搜索</span></button>${homeScreenAction}</div><button class="guide-floating-toggle" type="button" data-guide-floating-toggle aria-label="打开快捷操作" aria-controls="guide-floating-actions" aria-expanded="false"><span aria-hidden="true" data-guide-floating-toggle-icon>•••</span></button></div><aside id="guide-search-panel" class="guide-search-panel" hidden aria-labelledby="guide-search-title"><div class="guide-search-head"><strong id="guide-search-title">搜索攻略</strong><button id="guide-search-close" class="guide-search-close" type="button" aria-label="关闭搜索">×</button></div><form id="guide-search-form" class="guide-search-form" role="search"><input id="guide-search-input" type="search" autocomplete="off" placeholder="输入关键词" aria-label="搜索攻略关键词"><button id="guide-search-clear" class="guide-search-clear" type="button">清空</button><button class="guide-search-submit" type="submit">搜索</button><button id="guide-search-advanced" class="guide-search-advanced" type="button"${advancedDisabled}>高级搜索</button></form><div class="guide-search-navigation"><button id="guide-search-prev" type="button" disabled>上一个</button><span id="guide-search-count">0 / 0</span><button id="guide-search-next" type="button" disabled>下一个</button></div><div id="guide-search-results" class="guide-search-results" aria-live="polite"><p class="guide-search-hint"><span>普通搜索精确匹配攻略正文；</span><span>高级搜索模糊匹配补充阅读。</span></p></div></aside>${homeScreenDialog}${sourceIndex}`;
 }
 
-function renderHtml(data, mapConfig = { baidu: { enabled: false, ak: "" }, google: { enabled: false, key: "" } }, supabaseConfig = { enabled: false, projectUrl: "", publishableKey: "" }, { publicSource = false, contentSha256 = "" } = {}) {
+function renderHtml(data, mapConfig = { baidu: { enabled: false, ak: "" }, google: { enabled: false, key: "" } }, supabaseConfig = { enabled: false, projectUrl: "", publishableKey: "" }, { publicSource = false, contentSha256 = "", installHead = "" } = {}) {
+  const reading = readingSelection(data);
+  // Keep research records in the input JSON; expose only curated reading in HTML/search.
+  data = { ...data, features: { ...data.features, sourceIndex: Boolean(data.features.sourceIndex && reading.sources.length) } };
   const readAsset = (segments) => {
     const file = path.join(skillRoot, ...segments);
     if (!fs.existsSync(file)) {
@@ -969,16 +1072,17 @@ function renderHtml(data, mapConfig = { baidu: { enabled: false, ak: "" }, googl
   const googleLoader = readAsset(["assets", "google-route-map.js"]);
   const weatherTemplate = readAsset(["assets", "weather-card.html"]);
   const rainPrayer = readAsset(["assets", "rain-prayer.html"]);
-  const features = [data.features.arrivalDeparture && "arrival", data.features.arrivalDeparture && "flight-records", data.features.exchange && "exchange", data.features.weather && "weather-refresh", data.features.sourceIndex && "source-index", "day-tabs", data.features.dayMap && "day-map", data.features.contextualExplore && "contextual-explore", data.features.nearbyExplore && "nearby-explore", data.features.dayNavigation && "day-navigation", data.features.calendarExport && "calendar-export", data.features.expenseTracker && "expense-tracker", "booking-ledger", supabaseConfig.enabled && "collaboration"].filter(Boolean).join(" ");
+  const features = [data.features.arrivalDeparture && "arrival", data.features.arrivalDeparture && "flight-records", data.features.exchange && "exchange", data.features.weather && "weather-refresh", data.features.sourceIndex && "source-index", "day-tabs", "travel-mode", data.features.dayMap && "day-map", data.features.contextualExplore && "contextual-explore", data.features.nearbyExplore && "nearby-explore", data.features.dayNavigation && "day-navigation", data.features.calendarExport && "calendar-export", data.features.expenseTracker && "expense-tracker", "booking-ledger", supabaseConfig.enabled && "collaboration"].filter(Boolean).join(" ");
   const dateAttrs = data.meta.dates.length ? (data.meta.datePolicy === "explicit" ? ` data-trip-date-policy="explicit-list" data-trip-dates="${data.meta.dates.join(",")}"` : ` data-trip-start="${data.meta.dates[0]}" data-trip-end="${data.meta.dates.at(-1)}"`) : "";
   const init = `TravelGuideInteractions.initGuidePage({exchange:${Boolean(data.features.exchange)},weather:${Boolean(data.features.weather)},dayTabs:true,execution:true,calendar:${Boolean(data.features.calendarExport)},expenses:${Boolean(data.features.expenseTracker)},flights:${Boolean(data.features.arrivalDeparture)},themes:true});`;
   const guideId = data.meta.guideId || resolveGuideIdentity(data);
   const collaborationInit = supabaseConfig.enabled ? `<script data-guide-collaboration-runtime>${collaborationJs}</script><script data-guide-collaboration-init>(()=>{const config=${safeJson({ projectUrl: supabaseConfig.projectUrl, publishableKey: supabaseConfig.publishableKey, guideId })};const ready=TravelGuideCollaboration.init(config);TravelGuideFlightCollaboration.init(config,ready);})();</script>` : "";
   const theme = GUIDE_THEMES.some(([id]) => id === data.meta.theme) ? data.meta.theme : "coast";
-  const footer = `<footer class="guide-footer"><div><strong>${escapeHtml(data.meta.title)}</strong><p>${escapeHtml(data.meta.destination)} · ${escapeHtml(data.meta.dateDisplay || '')}</p></div><small>地图与定位服务可能受网络、额度或服务策略影响；出发前以官方信息为准。</small></footer>`;
+  const footer = `<footer class="guide-footer"><div><strong>${escapeHtml(data.meta.title)}</strong><p>${escapeHtml(data.meta.destination)} · ${escapeHtml(data.meta.dateDisplay || '')}</p></div></footer>`;
   const contentMeta = /^[a-f0-9]{64}$/.test(contentSha256) ? `<meta name="guide-content-sha256" content="${contentSha256}">` : "";
   const routeSections = renderRoute(data, routeCss, baiduLoader, googleLoader, mapConfig);
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="guide-build" content="${publicSource ? PUBLIC_PLACEHOLDERS.buildSha : "local"}"><meta name="guide-template-version" content="${PAGE_TEMPLATE_VERSION}">${contentMeta}<link rel="preload" as="image" href="assets/niumou-spritesheet.webp" type="image/webp"><title>${escapeHtml(data.meta.title)}</title><style>${guideShellCss}\n${interactionCss}</style></head><body class="guide-page" data-guide-mode="full" data-guide-version="${GUIDE_DATA_VERSION}" data-guide-template-version="${PAGE_TEMPLATE_VERSION}" data-guide-id="${guideId}" data-guide-theme="${theme}" data-guide-default-theme="${theme}" data-guide-features="${features}"${dateAttrs}>${renderHeroHub(data)}<nav class="quick-nav" data-quick-nav aria-label="页面快速导航"></nav><main>${renderArrival(data)}${routeSections.routeOverview}${renderDays(data, supabaseConfig.enabled, routeSections.mapSection)}${renderTransport(data)}${renderBudget(data)}${renderChecklist(data, weatherTemplate, rainPrayer, supabaseConfig.enabled)}${renderBookingLedger(data, supabaseConfig.enabled)}${renderSources(data)}</main>${renderSearch(data)}${renderExchangeDialog(data)}${renderThemePopover()}${footer}<script>${calendarJs}</script><script>${interactionJs}</script><script>${init}</script>${collaborationInit}</body></html>`;
+  const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="guide-build" content="${publicSource ? PUBLIC_PLACEHOLDERS.buildSha : "local"}"><meta name="guide-template-version" content="${PAGE_TEMPLATE_VERSION}">${contentMeta}${installHead}<link rel="preload" as="image" href="assets/niumou-spritesheet.webp" type="image/webp"><title>${escapeHtml(data.meta.title)}</title><style>${guideShellCss}\n${interactionCss}</style></head><body class="guide-page" data-guide-mode="full" data-guide-version="${GUIDE_DATA_VERSION}" data-guide-template-version="${PAGE_TEMPLATE_VERSION}" data-guide-id="${guideId}" data-guide-theme="${theme}" data-guide-default-theme="${theme}" data-guide-features="${features}"${dateAttrs}>${renderHeroHub(data)}<nav class="quick-nav" data-quick-nav aria-label="页面快速导航"></nav><main>${renderArrival(data)}${routeSections.routeOverview}${renderDays(data, supabaseConfig.enabled, routeSections.mapSection)}${renderTransport(data)}${renderBudget(data)}${renderChecklist(data, weatherTemplate, rainPrayer, supabaseConfig.enabled)}${renderBookingLedger(data, supabaseConfig.enabled)}${renderSources(data, reading)}</main>${renderSearch(data, reading)}${renderExchangeDialog(data)}${renderThemePopover()}${footer}<script>${calendarJs}</script><script>${interactionJs}</script><script>${init}</script>${collaborationInit}</body></html>`;
+  return projectReadingReferences(html, reading.numbers);
 }
 
 /* 门禁3：baseline HTML 的模板版本必须与当前 PAGE_TEMPLATE_VERSION 一致。
@@ -1149,7 +1253,10 @@ function finish(cliArgs = process.argv.slice(2)) {
   const canonicalContentHash = value => digest(JSON.stringify({ ...value, meta: { ...value.meta, guideId } }));
   report.contentContinuity.inputContentSha256 = canonicalContentHash(data);
   report.contentContinuity.baselineContentSha256 = baseline ? canonicalContentHash(baseline) : "";
-  const renderedHtml = renderHtml(renderData, mapConfig, supabaseConfig, { publicSource, contentSha256: report.contentContinuity.inputContentSha256 });
+  const install = guideInstallAssets(renderData.meta, output);
+  const renderedHtml = renderHtml(renderData, mapConfig, supabaseConfig, {
+    publicSource, contentSha256: report.contentContinuity.inputContentSha256, installHead: install.head
+  });
   // 门禁2：冻结模块比对（fail 拦截 / restore 还原）
   let finalHtml = renderedHtml;
   if (frozenModules.length) {
@@ -1192,7 +1299,7 @@ function finish(cliArgs = process.argv.slice(2)) {
   }
   try {
     report.artifactValidation = { valid: true };
-    deliverArtifacts({ inputPath: input, outputPath: output, html: finalHtml, skillRoot, runtimeAssets: GUIDE_OUTPUT_ASSETS, reportPath, report });
+    deliverArtifacts({ inputPath: input, outputPath: output, html: finalHtml, skillRoot, runtimeAssets: GUIDE_OUTPUT_ASSETS, generatedAssets: install.files, reportPath, report });
   } catch (error) {
     report.artifactValidation = { valid: false, error: error.message };
     report.htmlValidation.valid = false;

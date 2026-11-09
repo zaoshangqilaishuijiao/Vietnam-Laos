@@ -13,7 +13,10 @@ assert.doesNotMatch(css, /\.booking-ledger-card\{[^}]*padding(?:-top)?:\s*4[68]p
 assert.match(css, /@media\(max-width:640px\)\{\.booking-status\{min-height:44px/);
 assert.match(css, /\.booking-card-actions\{grid-column:1 \/ -1;display:flex;flex-wrap:wrap;/);
 assert.match(css, /\.booking-card-actions a\{[^}]*min-height:40px;[^}]*text-decoration:underline;/);
-assert.match(css, /travel-guide-interactions\.css: v31/);
+const cssMarker = require('./shared-constants.js').ASSET_SENTINELS.find(entry => entry.file === 'assets/travel-guide-interactions.css').marker;
+assert.ok(css.split('\n', 1)[0].includes(cssMarker));
+assert.match(css, /\.guide-xhs-fallback\{[^}]*flex-wrap:wrap;[^}]*max-width:100%;/);
+assert.match(css, /\.guide-xhs-fallback :is\(a,button\)\{[^}]*min-height:44px/);
 assert.match(css, /--guide-motion-fast: 120ms;[^}]*--guide-motion-standard: 190ms;[^}]*--guide-motion-press-scale: \.98;/s);
 assert.match(css, /\.guide-action-card:focus-within\{border-color:var\(--guide-primary-300\);box-shadow:var\(--guide-shadow-md\)\}/);
 assert.match(css, /@media \(hover:hover\) and \(pointer:fine\)\{\.guide-action-card:hover\{border-color:var\(--guide-primary-300\);background:/);

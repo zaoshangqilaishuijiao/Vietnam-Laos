@@ -227,7 +227,7 @@ function initFloatingActions(options = {}) {
     if (open) actions.removeAttribute("inert"); else actions.setAttribute("inert", "");
     if (toggleIcon) toggleIcon.textContent = open ? "×" : "•••";
     syncFocusable();
-    if (open && config.focus) (visibleActions().at(-1) || toggle).focus();
+    if (open && config.focus) (visibleActions()[0] || toggle).focus();
   };
   const clearHoverTimers = () => {
     globalThis.clearTimeout(hoverOpenTimer);
@@ -318,8 +318,8 @@ function initGuidePage(options = {}) {
       return null;
     }
   };
-  if (options.sources !== false) active.sources = initialize("sources", () => initSourceLinks({ root, ...(options.sourceOptions || {}) }));
-  if (options.search !== false) active.search = initialize("search", () => initSearch({ root, ...(options.searchOptions || {}) }));
+  if (options.sources !== false) active.sources = initialize("sources", () => initSourceLinks({ root, revealOverview: () => active.travel?.revealOverview(), ...(options.sourceOptions || {}) }));
+  if (options.search !== false) active.search = initialize("search", () => initSearch({ root, revealHit: hit => active.travel?.revealSearchHit(hit) || hit, clearReveal: () => active.travel?.clearSearchTarget(), ...(options.searchOptions || {}) }));
   if (options.copy !== false) active.copy = initialize("copy", () => initCopyControls({ root, ...(options.copyOptions || {}) }));
   if (options.checklist !== false) active.checklist = initialize("checklist", () => initChecklist({ root, editable: true, ...(options.checklistOptions || {}) }));
   if (options.preview !== false) active.preview = initialize("preview", () => initImagePreview({ root, ...(options.previewOptions || {}) }));
@@ -327,6 +327,7 @@ function initGuidePage(options = {}) {
   if (options.exchange) active.exchange = initialize("exchange", () => initExchange({ root, ...(options.exchange === true ? {} : options.exchange) }));
   if (options.weather) active.weather = initialize("weather", () => initWeatherForecast({ root, ...(options.weather === true ? {} : options.weather) }));
   if (options.dayTabs) active.dayTabs = initialize("dayTabs", () => initDayTabs({ root, ...(options.dayTabs === true ? {} : options.dayTabs) }));
+  if (active.dayTabs) active.travel = initialize("travel", () => initTravelMode(root, active.dayTabs));
   if (options.execution) active.execution = initialize("execution", () => initExecutionLinks({ root, ...(options.execution === true ? {} : options.execution) }));
   if (options.calendar) active.calendar = initialize("calendar", () => initCalendarExport({ root, ...(options.calendar === true ? {} : options.calendar) }));
   if (options.expenses) active.expenses = initialize("expenses", () => initExpenseTracker({ root, ...(options.expenses === true ? {} : options.expenses) }));
@@ -334,6 +335,7 @@ function initGuidePage(options = {}) {
   if (options.flights) active.flights = initialize("flights", () => initFlightRecords({ root, ...(options.flights === true ? {} : options.flights) }));
   if (options.routeSummary !== false) active.routeSummary = initialize("routeSummary", () => initRouteSummary({ root, ...(options.routeSummaryOptions || {}) }));
   if (options.themes !== false) active.themes = initialize("themes", () => initThemeSwitcher({ root, ...(options.themeOptions || {}) }));
+  if (options.floatingActions !== false) initialize("homeScreen", () => initHomeScreen(root));
   if (options.floatingActions !== false) active.floatingActions = initialize("floatingActions", () => initFloatingActions({ root, ...(options.floatingActionOptions || {}) }));
   if (options.floatingActions !== false && options.niumou !== false) active.niumou = initialize("niumou", () => initNiumouFloatingToggle({ root, ...(options.niumouOptions || {}) }));
   return active;

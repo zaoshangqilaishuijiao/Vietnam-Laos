@@ -48,6 +48,8 @@ node "<skill-root>/scripts/validate-trip-data.js" trip-request.json --stage=requ
 
 需求基线通过后，按 `research-and-sources.md` 先完成游客经验和官方核验。将实际使用的来源写入 `trip-brief.json.researchSources`，将目标和实际数量写入 `researchAudit`；不得只在对话中声称“已读取”。达到目标时设 `status=completed`；遇到平台拦截立即停止该平台访问并记录原因；按研究规则使用允许范围内的替代证据，覆盖完整后继续，证据不足才保持 `blocked`。
 
+首次读帖按 [首次读取留存与按需调用](research-and-sources.md#首次读取留存与按需调用) 将有用来源、地点、事实和素材留在同一本地记录；后续写模块用 `research-store.js --module/--entity/--city/--q` 取相关片段，先复用再补缺。不将原始工具返回、研究图片链接或整库塞进 brief、trip-data 或上下文；进入内容阶段只投影选定事实及必要来源，研究ID映射到现有数字来源ID和地点ID，不新建平行运行时数据源。
+
 研究完成后，从 `assets/data/trip-brief.template.json` 建立 `trip-brief.json`：
 
 - 原样继承需求基线中的日期、人数、预算、必去/避开、偏好、限制、功能开关和研究计划；
@@ -68,6 +70,8 @@ node "<skill-root>/scripts/summarize-trip-brief.js" trip-brief.json
 
 从 `assets/data/trip-data.template.json` 建立 `trip-data.json`，以 `confirmation.status=confirmed` 或 `skipped` 的 brief 为输入：
 
+填充前按模块／地点调用本地研究记录；检查动态事实日期与条件、实际素材及分店，再写原有字段。已有 `places[]` 和已核实的 `dayRoadRoutes[]` 可在起终点、地点身份、顺序和交通方式未变时复用，不重复做相同地理编码或路线请求；路线顺序、方式或实际通行条件变化才重核受影响部分。不从旧研究记录恢复已被用户删改的内容。
+
 - `meta`：标题、日期、人数、预算口径、一句话路线与可选语义主题 `theme`；默认使用海岸蓝，也可按封面照片主色、整体明度和旅程气质在六套预设中调整；
 - 新攻略必须填写 `meta.hero.title` 与 `meta.hero.subtitle`：标题按“核心体验意象＋季节、时间或旅程气质”原创概括并优先控制为四个汉字，摘要按最终路线顺序压缩起点、关键过渡和收束点，只体现已确认的节奏与偏好。英文标识由模板固定输出 `ITINERARY`，不从数据改写；数据契约不提供行程事实和目的地短评字段，生成阶段不得创建这些内容，也提供今日或上次行程入口，不恢复旧多入口面板，固定结构见 [content-modules.md](content-modules.md)；
 - `places`：所有住宿、景点、交通节点的统一地点库，是名称、地址、坐标和来源的唯一真相源；
@@ -76,14 +80,14 @@ node "<skill-root>/scripts/summarize-trip-brief.js" trip-brief.json
 - `days`：每天完整字段、0–5 分半星强度、详情、备注和直达链接；
 - `transport`、`budget`、`recommendations`、`localKnowledge`、`checklist`、`bookingLedger`、`weather`，以及确有整类共同限制时才创建的可选 `recommendationNotes`；
 - `sources`：必须保留 brief 已使用的研究来源，可追加详细写作所需的官方核验；
-- `sourceIndex`：只保存标题、城市、10–20 个去重标签、2–6 条可搜索提示词和来源 ID，不保存笔记原文；小红书笔记优先覆盖地点、交通、预约、费用、时间、风险、替代方案等不同维度。
+- `sources[].reading`：只有正文之外有具体阅读价值且仍适用于当前方案时填写 `{topic,title,value}`，详见 research-and-sources.md。研究来源与阅读数量留本地，不为展示删研究证据。`sourceIndex` 为可选本地检索提示，不保存原文、不凑标签数量；网页索引只投影入选补充阅读，清理时统一更新编号、角标与搜索，正文执行信息和图片归属不删。
 
 关键子项契约：
 
 - `places[]`：稳定 `id`、中外文名称、检索名、城市、国家/地区、地址、坐标和来源；路线、天气和逐日条目只引用 `placeId`，不得复制另一套地点字段。
 - `route.stopIds[]`：只保存地点 ID；`route.legs[]` 使用 `fromPlaceId/toPlaceId` 逐段连接，并保存方式、分钟数、颜色和断点标记。
 - `days[].accommodation`：以 `startPlaceId/endPlaceId` 锚定每日出发与结束住宿，可标记已确认、待定或不适用；可选 `note` 只写会改变当天动作的特殊入住或寄存信息。
-- `days[].items[]`：稳定 `id/type/placeId/title/activity/startTime/endTime/timeText/travelMinutes/stayMinutes/transportMode/breakGroundRoute/reservationStatus/sourceIds`。单一导航偏好可选 `navigationMode`，多方案对比则改用已核验的 `navigationOptions`，二者互斥；推荐方案耗时必须与 `travelMinutes` 一致。确定时间必须成对填写并通过相邻时段冲突校验；弹性安排使用不超过 24 个字符的简短 `timeText`，只作展示、不参与节点时间重算，也不得复制路线、标题或活动正文。
+- `days[].items[]`：稳定 `id/type/placeId/title/activity/startTime/endTime/timeText/travelMinutes/stayMinutes/transportMode/breakGroundRoute/reservationStatus/sourceIds`。新写地面路段按逐段研究结果填写已核验的 `navigationOptions`，允许单方案，不固定方式或数量；用户明确单一查询偏好可选 `navigationMode`，二者互斥。推荐耗时必须与 `travelMinutes` 一致，来源复用条目 `sourceIds`。确定时间成对填写并通过冲突校验；弹性安排使用不超过 24 字符的 `timeText`，只展示、不参与重算，不复制路线、标题或正文。
 - `days[].items[].details/notes/links/referenceImages`：详情按条数决定是否编号；备注统一进入黄色区；网页链接保存标签和 http(s) URL；与节点直接相关的原始图片保存安全相对路径、短标题、替代文本和用途说明，并把实际图片资源随最终 HTML 保留。地址继续复用 `places[]`，由渲染器仅在首次出现时输出。
 - `days[].items[].calendarHighlight` 与 `days[].calendarNotes[]`：每天显式选择 1–6 个主要时间/地点进入 ICS，日历备注最多 3 条；禁止把所有网页信息复制进日历。
 - `transport[]`：出发地、目的地、出发/抵达窗口、方式、耗时、费用和来源；只有存在日期、班次、施工或运营方特有的执行条件时才填写可选 `verification`。

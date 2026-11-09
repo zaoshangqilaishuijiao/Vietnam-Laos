@@ -16,6 +16,10 @@ node_modules/
 .env
 
 # Validation reports (never publish)
+*.local.json
+*.local.json.lock
+*.local.json.tmp-*
+research-assets/
 *.validation.json
 *.baseline.json
 *.baseline.html

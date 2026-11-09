@@ -117,7 +117,11 @@
         const lastIndex = ordered.lastIndexOf(id);
         const label = index === 0 && lastIndex === ordered.length - 1 && lastIndex > 0 ? `${alphabet(index)}/${alphabet(lastIndex)}` : alphabet(index);
         const marker = new maps.Marker({ position: point(place), map, title: titleOf(place), icon: markerIcon(themeColor(), true), label: { text: label, color: "#fff", fontWeight: "700", fontSize: label.length > 1 ? "10px" : "12px" }, zIndex: 10 });
-        marker.addListener("click", () => { popup(marker, place); focusFormal(place.id); });
+        marker.addListener("click", () => {
+          if (!document.dispatchEvent(new CustomEvent("guide:map-marker-select", { cancelable: true, detail: { key, placeId: place.id } }))) { info.close?.(); return; }
+          popup(marker, place);
+          focusFormal(place.id);
+        });
         overlays.push(marker); bounds.extend(point(place));
       });
       if (view.kind !== "exploration") {

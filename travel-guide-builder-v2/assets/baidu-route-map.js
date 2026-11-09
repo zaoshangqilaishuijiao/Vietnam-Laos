@@ -92,6 +92,7 @@
       const title = (place.localName && place.localName !== place.name) ? place.name + " / " + place.localName : place.name;
       marker.setTitle(title);
       marker.addEventListener("click", () => {
+        if (!nearby && !document.dispatchEvent(new CustomEvent("guide:map-marker-select", { cancelable: true, detail: { key: activeKey, placeId: place.id } }))) return;
         if (nearby) selectNearby(place.id, true); else focusItem(place.id);
         showInfo(place);
       });
@@ -159,7 +160,7 @@
     map.addEventListener("zoomend", updateLabels);
     document.querySelectorAll("[data-map-view]").forEach((button) => bind(button, "click", () => renderView(button.dataset.mapView)));
     bind(document, "guide:day-change", (event) => { const key = "day-" + event.detail?.dayNumber; if (data.days.some((day) => day.key === key)) renderView(key); });
-    bind(document, "guide:focus-place", (event) => { const placeId = event.detail?.placeId; if (!placeId) return; const key = event.detail?.dayNumber ? "day-" + event.detail.dayNumber : activeKey; if (key !== activeKey && data.days.some((day) => day.key === key)) renderView(key); const place = byId.get(placeId); const marker = markerByPlace.get(placeId); if (place) { map.centerAndZoom(point(place), Math.max(map.getZoom(), 13)); marker?.dispatchEvent("click"); } });
+    bind(document, "guide:focus-place", (event) => { const placeId = event.detail?.placeId; if (!placeId) return; const key = event.detail?.dayNumber ? "day-" + event.detail.dayNumber : activeKey; if (key !== activeKey && data.days.some((day) => day.key === key)) renderView(key); const place = byId.get(placeId); const marker = markerByPlace.get(placeId); if (place) { map.centerAndZoom(point(place), Math.max(map.getZoom(), 13)); if (marker) showInfo(place); } });
     bind(document, "guide:current-location", (event) => { const lat=Number(event.detail?.latitude),lng=Number(event.detail?.longitude); if(!Number.isFinite(lat)||!Number.isFinite(lng))return;currentLocation={latitude:lat,longitude:lng};renderView(activeKey);map.centerAndZoom(new BMapGL.Point(lng,lat),Math.max(map.getZoom(),13)); });
     bind(document, "guide:nearby-toggle",event=>{if(event.detail?.key && event.detail.key!==activeKey)return;setNearby(event.detail?.visible);});
     bind(document, "guide:theme-change",()=>renderView(activeKey));

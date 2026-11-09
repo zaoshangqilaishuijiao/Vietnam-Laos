@@ -101,3 +101,7 @@ fs.readdirSync(path.join(root, "supabase"))
   .filter((name) => name.endsWith(".sql"))
   .forEach((name) => assert.ok(collaborationDoc.includes(name), "supabase-collaboration.md must mention migration " + name));
 console.log("通过：协作资产契约");
+
+
+
+

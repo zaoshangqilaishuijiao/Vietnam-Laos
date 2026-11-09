@@ -209,7 +209,8 @@ function fixture(seed = [], options = {}) {
   const reloaded=fixture([],{stored:transitUpload.saved()});
   assert.equal(reloaded.q('[data-flight-list]').querySelectorAll('[data-flight-connection]').length,1);
   reloaded.dom.window.close();transitUpload.dom.window.close();
-  const css=fs.readFileSync(path.join(__dirname,'../assets/travel-guide-interactions.css'),'utf8').split('/* ==================== 机票凭证 ==================== */')[1];
+  const css=fs.readFileSync(path.join(__dirname,'../assets/travel-guide-interactions.css'),'utf8')
+    .split('/* ==================== 机票凭证 ==================== */')[1].split('.guide-collab-notice')[0];
   assert.match(css,/@container \(min-width:720px\).*repeat\(2,minmax\(0,1fr\)\)/);
   assert.doesNotMatch(css,/repeat\(3|620px|960px|280px/);
   const outputDir=process.argv.find(arg=>arg.startsWith('--preview-dir='))?.slice('--preview-dir='.length);

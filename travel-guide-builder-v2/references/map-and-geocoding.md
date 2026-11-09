@@ -7,7 +7,7 @@
 - 全部地点在中国大陆（不含港澳台）时使用百度 JS API GL；涉及境外、香港、澳门或台湾时使用 Google Maps JavaScript API。
 - 两种 Browser Key 本地仅放在用户私有配置 `~/.codex/private/travel-guide-builder-v2/baidu-map.local.json`（macOS/Linux）或 `%USERPROFILE%\.codex\private\travel-guide-builder-v2\baidu-map.local.json`（Windows），字段为 `ak` 与 `googleMapsApiKey`。不得写入技能、模板、`trip-*.json`、验证报告或 Git。公开 Pages 先提交 `--public-source` 占位符 HTML，再由 GitHub Actions 从 Repository Secret 注入正式 Browser Key 并只上传 Pages Artifact；部署后 Browser Key 对访客可见属前端 API 的正常特性，必须在地图控制台同时限制正式 Pages 域名、可用 API 和调用额度。
 - 地图验收不得用无效密钥替代真实验证。沿用当前受限 Browser Key 即可，不要求额外创建密钥；本地私有构建和 GitHub Actions 分别从本地私有配置与 Repository Secret 注入，密钥值不写入命令行参数、攻略、报告或 Git。
-- 本地预览默认通过只监听 `127.0.0.1` 的 HTTP 服务打开私有构建副本，并在地图控制台允许实际使用的本地 HTTP 来源。用户已指定固定端口时沿用，不因端口占用自动换号；先核对已运行服务的目录，避免预览另一份产物。若地图服务不接受回环地址的 Referer，再使用一个固定的用户可控主机名在本机映射到回环地址。预览来源精确配置主机及端口，保留正式 Pages 来源，不关闭 Referer/API/额度限制。
+- 本地预览只使用私有 `preview.local.json` 指定的固定来源，流程与 `preview-guide.js` 用法统一见 [固定本机预览来源](web-output-and-publishing.md#固定本机预览来源)。按独立路径挂载攻略，启动前核对端口与产物；不自动换号、停止进程、改 hosts 或调整密钥限制。
 - `file://` 通常无法提供可用的 Referer，不能用于真实地图验收；Google Maps 支持 HTTP/HTTPS 网站来源，但浏览器对本地文件或 WebView 可能省略 Referer。使用授权的本地 HTTP 来源和真实 Browser Key 检查底图与覆盖层。若地图服务仍拒绝该来源，不得改用假密钥冒充通过；地图只能如实记为 `degraded`，并说明尚未验证真实底图。
 - 百度 bootstrap 必须在 HTML 解析阶段直接加载；Google 直接加载 Maps JavaScript API。适配器分别等待 `window.BMapGL` 与 `window.google.maps.Map`。
 - 不自动切换另一家引擎。失败时显示具体诊断和“重试地图”，优先排查 API 启用、结算/额度、Referer 白名单与网络。
@@ -39,5 +39,5 @@
 
 - Google 等待 JSAPI 最多 12 秒、首批底图最多 10 秒；任一超时均回收为可重试的错误状态，不得永久显示 Loading。
 - 百度适配器只做一次诊断性重试；Google 与百度均不得自动降级到另一家。
-- 本地地图验收通过已列入白名单的 HTTP 来源，并注入真实、受限的 Browser Key；检查首批底图、道路几何、A/E 合并标记、候选开关与卡片双向定位、版权、控制台错误和 390px/412px 无横向溢出。验收证据写明实际来源和地图加载结果，不记录密钥；预览端口只按实际环境加入白名单，不固化特定端口。
+- 本地地图验收使用私有配置已授权的固定 HTTP 来源和真实受限 Browser Key；检查首批底图、日期切换、道路几何、A/E 合并标记、候选开关与卡片双向定位、版权、控制台错误和 390px/412px 无横向溢出。证据写明实际来源和结果，不记录密钥；技能不写死本机端口，换电脑需核实私有来源授权。
 - 自动测试覆盖引擎选择与超时契约；只有地图适配器、加载逻辑或地图密钥/来源配置发生变化时，才用纯中国大陆路线和境外/港澳台路线各做一次真实地图验收。普通攻略内容更新只验收该攻略受影响的地图内容，不重复跨引擎通测。

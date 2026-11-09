@@ -20,7 +20,7 @@ const path = require("path");
 const { readOption, readCsvOption } = require("./cli-options.js");
 const { validateTripData } = require("./validate-trip-data.js");
 
-const MODULE_KEYS = ["meta", "features", "calendar", "arrivalDeparture", "places", "route", "days", "nearbyDays", "transport", "budget", "recommendations", "recommendationNotes", "venueSuggestions", "recommendationPlacements", "localKnowledge", "checklist", "bookingLedger", "weather", "researchAudit", "sources", "sourceIndex"];
+const MODULE_KEYS = ["meta", "features", "calendar", "arrivalDeparture", "places", "route", "days", "nearbyDays", "dayRoadRoutes", "explorationSegments", "transport", "budget", "recommendations", "recommendationNotes", "venueSuggestions", "recommendationPlacements", "localKnowledge", "checklist", "bookingLedger", "weather", "researchAudit", "sources", "sourceIndex"];
 const PATCHABLE_MODULES = MODULE_KEYS.filter((key) => key !== "days");
 const PATCH_META_KEYS = new Set(["_dayNumbers"]);
 const USAGE = "Usage: node extract-trip-sections.js <trip-data.json> [--days=1,3] [--items=id1,id2] [--module=transport] [--patch-file=patch.json --apply]";
@@ -149,7 +149,7 @@ function validateResult(next, previous) {
   const after = Object.keys(next).sort().join(",");
   const newlyAdded = Object.keys(next).filter(key => !Object.prototype.hasOwnProperty.call(previous, key));
   const removed = Object.keys(previous).filter(key => !Object.prototype.hasOwnProperty.call(next, key));
-  if (before !== after && (removed.length || newlyAdded.some(key => key !== "nearbyDays"))) throw new Error(`写回后顶层键集合变化（${before} → ${after}）；拒绝落盘。`);
+  if (before !== after && (removed.length || newlyAdded.some(key => !["nearbyDays", "dayRoadRoutes", "explorationSegments"].includes(key)))) throw new Error(`写回后顶层键集合变化（${before} → ${after}）；拒绝落盘。`);
   if (Array.isArray(previous.days) !== Array.isArray(next.days) || (Array.isArray(next.days) && next.days.length !== previous.days.length)) {
     throw new Error("写回后天数变化；--apply 不允许增删天。");
   }

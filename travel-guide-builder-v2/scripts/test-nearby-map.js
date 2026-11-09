@@ -143,6 +143,19 @@ assert.equal(scanElementBlock(html, "data-day-panel", "1").fragment, scanElement
 const calendarData = page => [...page.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].find(match => /\bdata-calendar-events\b/.test(match[1]))?.[2];
 assert.equal(calendarData(html), calendarData(plainHtml), "附近候选不能改写 ICS 事件");
 const valueFirstHtml = render(valueFirst, "value-first").html;
+const shopData = structuredClone(valueFirst);
+const shopCandidates = shopData.nearbyDays[0].candidates;
+Object.assign(shopCandidates[0], { shopPick: "手织布 & 编织小袋", routeFit: "detour" });
+Object.assign(shopCandidates[1], { shopPick: "当地设计师的明信片", routeFit: "along_route" });
+Object.assign(shopCandidates[2], { routeFit: "same_area" });
+const shopHtml = render(shopData, "shop-picks").html;
+const cardIds = page => [...page.matchAll(/data-nearby-card="([^"]+)"/g)].map(match => match[1]);
+const originalIds = cardIds(valueFirstHtml);
+assert.deepEqual(cardIds(shopHtml), [1, 2, 3, 4, 0].map(index => originalIds[index]));
+assert.match(shopHtml, /<b>进店看<\/b> 手织布 &amp; 编织小袋/);
+assert.equal(scanElementBlock(shopHtml, "data-day-panel", "1").fragment, scanElementBlock(valueFirstHtml, "data-day-panel", "1").fragment);
+assert.equal(calendarData(shopHtml), calendarData(valueFirstHtml));
+
 assert.equal((valueFirstHtml.match(/data-nearby-card=/g) || []).length, 5, "不绑定窗口的专程推荐必须完整渲染");
 assert.equal(scanElementBlock(valueFirstHtml, "data-day-panel", "1").fragment, scanElementBlock(plainHtml, "data-day-panel", "1").fragment, "有专程候选也不自动重排正式日程");
 assert.equal(calendarData(valueFirstHtml), calendarData(plainHtml), "无窗口候选不得改变 ICS 事件");

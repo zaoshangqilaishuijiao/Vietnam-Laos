@@ -46,4 +46,29 @@ async function main() {
     console.log('PASS Niumou exchange dialog, bidirectional conversion, USD, mnemonic, menu order');
   } finally { dom.window.close(); }
 }
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+async function testPairConverter() {
+  const dom = new JSDOM(`<!doctype html><body><section data-exchange-tool data-exchange-base="CNY" data-exchange-targets="LAK,VND"><input data-exchange-local-input value="100"><input data-exchange-input readonly><select data-exchange-from><option>LAK</option><option>VND</option><option>USD</option><option>CNY</option></select><select data-exchange-to><option>LAK</option><option>VND</option><option>USD</option><option selected>CNY</option></select><button data-exchange-swap>交换</button><span data-exchange-rate-base></span><span data-exchange-rate-usd></span><div class="guide-quickcalc__mnemonic" hidden><p data-exchange-mnemonic></p></div><p data-exchange-last-updated hidden></p><p data-exchange-status hidden></p><button data-exchange-refresh>刷新</button></section>`, { url: 'https://example.test/', runScripts: 'outside-only' });
+  try {
+    dom.window.eval(fs.readFileSync(path.join(__dirname, '../assets/travel-guide-interactions.js'), 'utf8'));
+    const doc=dom.window.document, get=key=>doc.querySelector(`[data-exchange-${key}]`);
+    const amount=get('local-input'), result=get('input'), from=get('from'), to=get('to');
+    let calls=0, fail=false;
+    const fetchImpl=async()=>{calls++; if(fail) throw Error('offline'); return {ok:true,json:async()=>({rates:{CNY:1,LAK:3000,VND:3600,USD:.14},date:'2026-11-03'})};};
+    const api=dom.window.TravelGuideInteractions;
+    let controller=api.initExchange({root:doc,fetchImpl});
+    assert.equal(amount.value,'100'); assert.equal(result.value,''); assert.equal(calls,0);
+    await controller.refresh();
+    assert.equal(result.value,'0.03'); assert.match(get('mnemonic').textContent,/去掉 3 个 0，再除以 3/);
+    get('swap').click(); assert.equal(amount.value,'100'); assert.equal(from.value,'CNY'); assert.equal(to.value,'LAK'); assert.equal(result.value,'300,000');
+    amount.value='250'; amount.dispatchEvent(new dom.window.Event('input')); get('swap').click(); assert.equal(amount.value,'250');
+    to.value='LAK';to.dispatchEvent(new dom.window.Event('change')); assert.equal(from.value,'CNY'); assert.equal(to.value,'LAK');
+    from.value='VND';from.dispatchEvent(new dom.window.Event('change')); assert.equal(amount.value,'250'); assert.equal(calls,1);
+    const previous=result.value, date=get('last-updated').textContent;
+    fail=true; await controller.refresh(); assert.equal(result.value,previous);assert.equal(get('last-updated').textContent,date);
+    controller.destroy();
+    controller=api.initExchange({root:doc,fetchImpl});assert.equal(result.value,previous);assert.equal(calls,2,'cache must restore without another request');
+    get('swap').click();assert.equal(from.value,'LAK','destroy/reinit must not duplicate swap handlers');
+    controller.destroy(); console.log('PASS currency pair default, stable amount, duplicate selection, cache, offline, lifecycle');
+  } finally {dom.window.close();}
+}
+main().then(testPairConverter).catch((error) => { console.error(error); process.exitCode = 1; });

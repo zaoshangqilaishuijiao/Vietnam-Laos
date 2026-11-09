@@ -116,6 +116,14 @@ const comparisonDay = {dayNumber:1,items:[
   ]}
 ]};
 const comparisonSegments = dayNavigationSegments(comparisonDay, places);
+const singleDay = structuredClone(comparisonDay);
+singleDay.items[1].navigationOptions = [{mode:'walking',durationMinutes:20,recommended:true}];
+singleDay.items[1].transportMode = '步行';
+const singleSegments = dayNavigationSegments(singleDay, places);
+assert.deepEqual(singleSegments[0].options.map(o=>o.mode), ['walking'], 'Do not pad a suitable single option with fixed transport modes');
+const singleHtml = renderDayNavigation(singleDay, places, singleSegments);
+assert(singleHtml.includes('🚶‍♀️') && singleHtml.includes('20分') && singleHtml.includes('travelmode=walking'));
+assert.equal((singleHtml.match(/route-timeline-rec/g)||[]).length,1);
 assert.deepEqual(comparisonSegments[0].options.map(option => option.mode), ['driving','motorcycle','tuktuk','ferry','walking']);
 assert.equal(new URL(comparisonSegments[0].options[1].url).searchParams.has('travelmode'), false, 'do not fabricate unsupported Google motorcycle mode');
 assert.equal(new URL(comparisonSegments[0].options[2].url).searchParams.has('travelmode'), false, 'do not fabricate unsupported Google tuktuk mode');

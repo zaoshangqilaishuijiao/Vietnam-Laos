@@ -16,14 +16,15 @@ function initRouteSummary(options = {}) {
     if (card.dataset.routeSummaryReady === "true") return;
     card.dataset.routeSummaryReady = "true";
     const rows = [...card.querySelectorAll(".route-stop-row")];
+    const transfers = [...card.querySelectorAll(".route-timeline-transfer")];
     const segments = [...card.querySelectorAll(".route-timeline-transfer[data-route-segment-index]")];
     const summary = card.querySelector(".route-timeline-summary");
     const baseTimes = rows.map((row) => Number(row.querySelector(".route-stop-time")?.dataset.initialMinutes));
     const supportsRecalculation = rows.length > 1 && segments.length === rows.length - 1
       && baseTimes.every(Number.isFinite) && segments.every((segment) => Number.isFinite(Number(segment.dataset.defaultDuration)));
     const updateTimeline = () => {
-      if (!supportsRecalculation || !summary) return;
-      rows.forEach((row, index) => {
+      if (!summary) return;
+      if (supportsRecalculation) rows.forEach((row, index) => {
         const time = row.querySelector(".route-stop-time");
         time.textContent = formatClock(baseTimes[index]);
         let estimate = row.querySelector(".route-arrival-estimate");
@@ -33,15 +34,15 @@ function initRouteSummary(options = {}) {
         estimate.hidden = !delta;
         estimate.textContent = delta ? `预计 ${formatClock(Number(time.dataset.arrivalMinutes ?? baseTimes[index]) + delta)}（${delta > 0 ? "晚于" : "早于"}计划 ${Math.abs(delta)} 分）` : "";
       });
-      const knownMovement = segments.reduce((total, segment) => {
-        const duration = Number(segment.dataset.selectedDuration);
+      const knownMovement = transfers.reduce((total, segment) => {
+        const duration = Number(segment.dataset.selectedDuration ?? segment.dataset.defaultDuration ?? segment.dataset.plannedDuration);
         return total + (Number.isFinite(duration) ? duration : 0);
       }, 0);
       const destination = rows.at(-1)?.querySelector(".route-place-link")?.textContent.trim() || "终点";
       const strong = (value) => { const node = document.createElement("b"); node.textContent = value; return node; };
       summary.replaceChildren(
         document.createTextNode("共 "), strong(rows.length + " 个停靠点"),
-        document.createTextNode(" · 已知移动 "), strong(formatDuration(knownMovement)),
+        document.createTextNode(" · 已知移动 "), strong(knownMovement > 0 ? formatDuration(knownMovement) : "暂无估算"),
         document.createTextNode(" · 终点 "), strong(destination)
       );
     };

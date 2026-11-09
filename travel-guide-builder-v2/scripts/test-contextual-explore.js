@@ -65,6 +65,15 @@ assert.ok(collectLocalAssetReferences(html).has("images/magnet.png"), "发布白
 const { requireJsdom } = require("./test-env.js");
 const JSDOM = requireJsdom();
 if (JSDOM) {
+  const generated = new JSDOM(html);
+  const generatedDoc = generated.window.document;
+  assert.equal(generatedDoc.querySelector('[data-exchange-local-input]').value, '100');
+  assert.equal(generatedDoc.querySelector('[data-exchange-input]').readOnly, true);
+  const from = generatedDoc.querySelector('[data-exchange-from]'), to = generatedDoc.querySelector('[data-exchange-to]');
+  assert.deepEqual([...from.options].map(option => option.value), ['LAK', 'USD', 'CNY']);
+  assert.equal(from.value, 'LAK'); assert.equal(to.value, 'CNY');
+  assert.ok(generatedDoc.querySelector('[data-exchange-swap][aria-label]'));
+  generated.window.close();
   const dom = new JSDOM(`<!doctype html><body><article data-exchange-tool data-exchange-base="CNY" data-exchange-targets="LAK"><button data-exchange-refresh></button><span data-exchange-status></span><input data-exchange-input value="100"><span data-exchange-rate="LAK"></span><span data-exchange-result="LAK"></span></article><article data-exchange-comparison><input data-exchange-compare-amount value="1000"><div data-exchange-channel data-currency="LAK" data-rate="2900" data-fee-cny="10" data-fee-percent="0" data-fee-local="0"><span data-exchange-channel-result></span></div><div data-exchange-channel data-currency="LAK" data-rate="2900" data-fee-cny="" data-fee-percent="0" data-fee-local="0"><span data-exchange-channel-result></span></div><select data-exchange-reverse-currency><option value="LAK">LAK</option></select><input data-exchange-reverse-input value="2900"><span data-exchange-reverse-result></span></article>`, { runScripts: "outside-only", url: "http://127.0.0.1/" });
   dom.window.eval(fs.readFileSync(path.join(root, "assets/travel-guide-interactions.js"), "utf8"));
   const controller = dom.window.TravelGuideInteractions.initExchange({ root: dom.window.document, fetchImpl: async () => ({ ok: true, json: async () => ({ rates: { LAK: 2900 }, date: "2026-08-20" }) }) });

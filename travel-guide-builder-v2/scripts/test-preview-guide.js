@@ -1,0 +1,45 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const http = require('node:http');
+const {saveConfig,readConfig,handler,startPreview} = require('./preview-guide.js');
+const {isNonActionableSupplement} = require('./validate-trip-data.js');
+const listen = server => new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const close = server => new Promise(resolve => server.close(resolve));
+(async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'guide-preview-'));
+  const configFile = path.join(root,'preview.local.json');
+  const directory = path.join(root,'site'); fs.mkdirSync(directory);
+  fs.writeFileSync(path.join(directory,'guide.html'), '<h1>Current guide</h1>');
+  fs.writeFileSync(path.join(directory,'asset.css'), 'body{color:red}');
+  fs.writeFileSync(path.join(directory,'guide.webmanifest'), '{"display":"standalone"}');
+  const reserve = http.createServer(); await listen(reserve);
+  const port = reserve.address().port; await close(reserve);
+  saveConfig(configFile,{origin:`http://127.0.0.1:${port}`,mounts:{}});
+  const options = {configFile,alias:'laos',directory};
+  const started = await startPreview(options);
+  let active = started.server;
+  try {
+    assert.equal(started.reused,false);
+    assert.equal(active.address().address,'127.0.0.1');
+    assert.equal(await (await fetch(started.url)).text(),'<h1>Current guide</h1>');
+    assert.equal(await (await fetch(started.url+'asset.css')).text(),'body{color:red}');
+    assert.equal((await fetch(started.url+'guide.webmanifest')).headers.get('content-type'),'application/manifest+json');
+    assert.equal((await fetch(started.url+'missing.png')).status,404);
+    assert.equal((await startPreview({...options,checkOnly:true})).reused,true);
+    const second = await startPreview({...options,alias:'bangkok'});
+    assert.equal(second.reused,true);
+    assert.equal(new URL(second.url).port,String(port));
+    await close(active); active = null;
+    const occupied = http.createServer((req,res)=>res.end('unrelated service'));
+    await new Promise(resolve=>occupied.listen(port,'127.0.0.1',resolve)); active=occupied;
+    await assert.rejects(startPreview(options),/固定预览端口已占用/);
+    assert.equal(await (await fetch(started.url)).text(),'unrelated service', 'Do not stop another service');
+    saveConfig(configFile,{origin:'http://0.0.0.0:1234',mounts:{}});
+    assert.throws(()=>readConfig(configFile),/固定端口/);
+    for (const text of ['机场计划到达节点为个人缓冲，不代替航司值机／登机要求。','或按实际情况改出租车。酒店接驳班次另行落实。']) assert.equal(isNonActionableSupplement(text),true);
+    assert.equal(isNonActionableSupplement('接驳车08:00发车，需前一晚向前台预约。'),false);
+    console.log('PASS private fixed-origin preview, content identity, shared paths, port conflict, loopback and useful notices');
+  } finally { if(active) await close(active); }
+})().catch(error=>{console.error(error);process.exitCode=1;});

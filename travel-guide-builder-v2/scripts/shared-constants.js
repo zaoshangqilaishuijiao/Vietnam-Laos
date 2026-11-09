@@ -7,8 +7,8 @@
 const XHS_GENERAL_REQUIRED_COUNT = 10;
 const XHS_ARRIVAL_DEPARTURE_REQUIRED_COUNT = 3;
 const GUIDE_DATA_VERSION = "2.0";
-const PAGE_TEMPLATE_VERSION = '2.52.0';
-const INTERACTIONS_ASSET_VERSION = 46;
+const PAGE_TEMPLATE_VERSION = '2.61.0';
+const INTERACTIONS_ASSET_VERSION = 51;
 const GUIDE_THEMES = [
   ["rainforest", "雨林绿"],
   ["coast", "海岸蓝"],
@@ -25,7 +25,7 @@ const LOCAL_KNOWLEDGE_CATEGORIES = ["文化特点", "会客礼仪", "文化禁�
 const ASSET_SENTINELS = [
   { file: "assets/ics-calendar.js", marker: "travel-guide-calendar: v2" },
   { file: "assets/travel-guide-interactions.js", marker: `travel-guide-interactions: v${INTERACTIONS_ASSET_VERSION}` },
-  { file: "assets/travel-guide-interactions.css", marker: "travel-guide-interactions.css: v31" },
+  { file: "assets/travel-guide-interactions.css", marker: "travel-guide-interactions.css: v35" },
   { file: "assets/route-map.css", marker: "travel-route-map.css: v7" }
 ];
 

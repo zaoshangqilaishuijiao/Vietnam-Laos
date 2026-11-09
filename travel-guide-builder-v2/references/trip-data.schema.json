@@ -524,6 +524,22 @@
                     }
                   }
                 },
+                "photos": {
+                  "description": "可选实景相册，按展示顺序引用已核实的本地图片",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["src", "alt", "sourceId"],
+                    "properties": {
+                      "src": { "type": "string", "pattern": "^(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+\\.(?:jpg|jpeg|png|webp)$" },
+                      "alt": { "type": "string", "minLength": 1, "maxLength": 160 },
+                      "sourceId": { "type": "integer", "minimum": 1 },
+                      "credit": { "type": "string", "minLength": 1 },
+                      "license": { "type": "string", "minLength": 1 }
+                    }
+                  }
+                },
                 "referenceImages": {
                   "type": "array",
                   "maxItems": 4,
@@ -546,10 +562,9 @@
                 "transportMode": { "type": "string", "minLength": 1 },
                 "navigationMode": { "description": "单一路线偏好；与 navigationOptions 互斥", "enum": ["driving", "motorcycle", "tuktuk", "walking", "transit", "bus", "ferry", "cablecar", "mountainrail", "tram", "monorail", "minibus", "rickshaw", "bicycling"] },
                 "navigationOptions": {
-                  "description": "多方案对比；与 navigationMode 互斥，推荐项耗时必须等于 travelMinutes",
+                  "description": "逐段筛选后的有效交通方案，可只有一种；与 navigationMode 互斥，推荐项耗时必须等于 travelMinutes",
                   "type": "array",
-                  "minItems": 2,
-                  "maxItems": 5,
+                  "minItems": 1,
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
@@ -745,6 +760,8 @@
                 "targetType": { "enum": ["recommendation", "venueSuggestion"] },
                 "targetId": { "type": "string", "minLength": 1 },
                 "whyNow": { "type": "string", "minLength": 1, "maxLength": 160, "description": "推荐价值与用户兴趣的具体依据，不限顺路地点。" },
+                "shopPick": { "type": "string", "minLength": 1, "maxLength": 80, "description": "店内值得找的具体商品、款式、饮品或体验。" },
+                "routeFit": { "enum": ["along_route", "same_area", "detour"], "description": "相对当天正式路线的已核实关系，用于排序。" },
                 "windowIndex": { "type": "integer", "minimum": 0, "description": "可省略；填写时必须引用当天真实窗口，不用于限制推荐资格。" },
                 "timing": { "type": "string", "minLength": 1, "maxLength": 160, "description": "安排提示，按需说明营业、预约或调整条件，不承诺能塞进原行程。" },
                 "area": { "type": "string", "maxLength": 80, "description": "可选位置/交通关系，有依据时说明顺路可去或需专程前往。" }
@@ -894,9 +911,20 @@
           "scope": { "enum": ["general", "arrival-departure"], "default": "general" },
           "title": { "type": "string", "minLength": 1 },
           "author": { "type": "string", "minLength": 1 },
+          "license": { "type": "string", "minLength": 1 },
           "topics": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
           "cities": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-          "verificationStatus": { "type": "string", "minLength": 1 }
+          "verificationStatus": { "type": "string", "minLength": 1 },
+          "reading": {
+            "type": "object",
+            "required": ["topic", "title", "value"],
+            "additionalProperties": false,
+            "properties": {
+              "topic": { "enum": ["景点与文化", "街区玩法", "美食购物", "实用教程", "赛事资料"] },
+              "title": { "type": "string", "minLength": 1 },
+              "value": { "type": "string", "minLength": 1 }
+            }
+          }
         }
       }
     },

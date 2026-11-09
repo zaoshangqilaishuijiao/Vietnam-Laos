@@ -1,4 +1,4 @@
-/* travel-guide-interactions: v46 */
+/* travel-guide-interactions: v51 */
 (function initTravelGuideInteractions(global) {
   "use strict";
 
@@ -42,30 +42,90 @@ function initSourceLinks(options = {}) {
   let active = null;
   let timer = null;
   let xhsTimer = null;
+  let fallback = null;
+  let attempt = 0;
+  const removeFallback = () => { fallback?.remove(); fallback = null; };
   const clearXhsTimer = () => { global.clearTimeout(xhsTimer); xhsTimer = null; };
-  const reportXhsFailure = (keyword) => {
-    clearXhsTimer();
-    ownerDocument.dispatchEvent(new CustomEvent("guide:xhs-open-failed", { detail: { keyword } }));
-  };
-  const onVisibilityChange = () => { if (!isPageVisible()) clearXhsTimer(); };
-  const onXhsOpenFailed = async (event) => {
-    const keyword = text(event.detail?.keyword);
-    let copied = false;
-    if (keyword) {
-      try {
-        if (global.navigator?.clipboard && global.isSecureContext) { await global.navigator.clipboard.writeText(keyword); copied = true; }
-        else copied = Boolean(fallbackCopy(keyword, ownerDocument));
-      } catch (_copyUnavailable) { copied = false; }
+  const linkContext = (link) => {
+    let keyword = text(link.dataset.xhsKeyword);
+    if (!keyword) {
+      try { keyword = text(new URL(link.href).searchParams.get("keyword")); } catch (_) { /* Use the visible note title below. */ }
     }
-    toast(copied ? `未能唤起小红书；“${keyword}”已复制` : `未能唤起小红书，请在 App 内搜索“${keyword || "该地点"}”`);
+    keyword ||= text(link.textContent).replace(/^(?:图片[：:]\s*|原帖\s*[·：:]\s*)/, "").replace(/\s*↗\s*$/, "");
+    return { keyword, url: link.href, deeplink: link.dataset.xhsDeeplink, link };
+  };
+  const reportXhsFailure = (context) => {
+    clearXhsTimer();
+    ownerDocument.dispatchEvent(new CustomEvent("guide:xhs-open-failed", { detail: context }));
+  };
+  const onVisibilityChange = () => { if (!isPageVisible()) { attempt += 1; clearXhsTimer(); removeFallback(); } };
+  const onPageHide = () => { attempt += 1; clearXhsTimer(); removeFallback(); };
+  const copyValue = async (value, label) => {
+    try {
+      if (global.navigator?.clipboard && global.isSecureContext) await global.navigator.clipboard.writeText(value);
+      else if (!fallbackCopy(value, ownerDocument)) throw Error("copy unavailable");
+      toast(`${label}已复制`);
+    } catch (_) {
+      // Leave a selectable value even when clipboard access is unavailable.
+      if (!fallback) return;
+      let field = fallback.querySelector("input");
+      if (!field) { field = ownerDocument.createElement("input"); field.readOnly = true; field.setAttribute("aria-label", label); fallback.append(field); }
+      field.value = value; field.focus(); field.select();
+      toast(`请长按或手动复制${label}`);
+    }
+  };
+  const onXhsOpenFailed = (event) => {
+    const context = event.detail || {};
+    const keyword = text(context.keyword);
+    toast(`未能唤起小红书${keyword ? `：${keyword}` : ""}；可打开网页或复制原链接`);
+    if (!context.link?.isConnected) return;
+    removeFallback();
+    fallback = ownerDocument.createElement("span");
+    fallback.className = "guide-xhs-fallback";
+    fallback.setAttribute("role", "group");
+    fallback.setAttribute("aria-label", "小红书备用打开方式");
+    const label = ownerDocument.createElement("span");
+    label.textContent = keyword;
+    fallback.append(label);
+    const action = (title, run) => {
+      const button = ownerDocument.createElement("button"); button.type = "button"; button.textContent = title;
+      button.addEventListener("click", run); fallback.append(button);
+    };
+    action("重试 App", () => launch(context));
+    try {
+      const url = new URL(context.url);
+      if (url.protocol === "https:" && /(^|\.)xiaohongshu\.com$|^xhslink\.com$/i.test(url.hostname)) {
+        const web = ownerDocument.createElement("a");
+        web.href = url.href; web.target = "_blank"; web.rel = "noopener noreferrer";
+        web.textContent = context.deeplink?.includes("/item/") ? "打开原帖网页" : "打开搜索网页";
+        // An explicit click, not a delayed automatic navigation. Keep access parameters intact.
+        fallback.append(web);
+        action("复制原链接", () => copyValue(url.href, "原链接"));
+      }
+    } catch (_) { /* Never invent a replacement note URL. */ }
+    if (keyword) action("复制搜索词", () => copyValue(keyword, "搜索词"));
+    action("收起", () => { removeFallback(); context.link.focus(); });
+    context.link.after(fallback);
+  };
+  const launch = (context) => {
+    clearXhsTimer(); removeFallback();
+    const token = ++attempt;
+    try { navigate(context.deeplink); }
+    catch { reportXhsFailure(context); return; }
+    // Hiding the page invalidates this attempt; returning from the App must not trigger fallback.
+    if (token === attempt) xhsTimer = global.setTimeout(() => {
+      if (token === attempt && isPageVisible()) reportXhsFailure(context);
+    }, xhsFailureDelay);
   };
   ownerDocument.addEventListener("visibilitychange", onVisibilityChange);
+  global.addEventListener("pagehide", onPageHide);
   ownerDocument.addEventListener("guide:xhs-open-failed", onXhsOpenFailed);
   const onClick = (event) => {
     const link = event.target.closest('a[href^="#source-"]');
     if (link) {
       const target = root.querySelector(link.getAttribute("href"));
       if (!target) return;
+      options.revealOverview?.();
       event.preventDefault();
       if (active === target) {
         global.clearTimeout(timer);
@@ -85,19 +145,11 @@ function initSourceLinks(options = {}) {
       return;
     }
     const xhsLink = event.target.closest("a[data-xhs-link][data-xhs-deeplink]");
-    if (!xhsLink || event.defaultPrevented || !isMobile()) return;
+    if (!xhsLink || event.defaultPrevented || !isMobile() || event.button > 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     const deeplink = xhsLink.dataset.xhsDeeplink;
     if (!deeplink) return;
     event.preventDefault();
-    const keyword = xhsLink.dataset.xhsKeyword || "";
-    clearXhsTimer();
-    try {
-      navigate(deeplink);
-    } catch {
-      reportXhsFailure(keyword);
-      return;
-    }
-    xhsTimer = global.setTimeout(() => { if (isPageVisible()) reportXhsFailure(keyword); }, xhsFailureDelay);
+    launch(linkContext(xhsLink));
   };
   root.addEventListener("click", onClick);
   const api = Object.freeze({
@@ -105,7 +157,10 @@ function initSourceLinks(options = {}) {
       root.removeEventListener("click", onClick);
       global.clearTimeout(timer);
       clearXhsTimer();
+      attempt += 1;
+      removeFallback();
       ownerDocument.removeEventListener("visibilitychange", onVisibilityChange);
+      global.removeEventListener("pagehide", onPageHide);
       ownerDocument.removeEventListener("guide:xhs-open-failed", onXhsOpenFailed);
       active?.classList.remove(activeClass);
       active = null;
@@ -136,6 +191,7 @@ function initSearch(options = {}) {
     if (el.next) el.next.disabled = !hits.length;
   };
   const clearMarks = () => {
+    options.clearReveal?.();
     const parents = new Set();
     root.querySelectorAll("mark.guide-search-hit").forEach((mark) => {
       if (mark.parentNode) parents.add(mark.parentNode);
@@ -150,9 +206,10 @@ function initSearch(options = {}) {
     current = (index + hits.length) % hits.length;
     hits.forEach((mark, i) => mark.classList.toggle("is-current", i === current));
     setNavigation();
-    const panel = hits[current].closest("[data-day-panel]");
+    const target = options.revealHit?.(hits[current]) || hits[current];
+    const panel = target.closest("[data-day-panel]");
     if (panel?.hidden) root.querySelector(`[data-day-tab="${panel.dataset.dayPanel}"]`)?.click();
-    hits[current].scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+    target.scrollIntoView?.({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
   };
   const markBody = (query) => {
     clearMarks();
@@ -161,7 +218,7 @@ function initSearch(options = {}) {
     const walker = root.createTreeWalker(root.body || root, NodeFilter.SHOW_TEXT, { acceptNode(node) {
       const parent = node.parentElement;
       if (!parent || !text(node.nodeValue)) return NodeFilter.FILTER_REJECT;
-      if (parent.closest("#guide-search-panel,[data-guide-floating-tools],#sources,[data-guide-module='sources'],script,style,input,textarea,select,template,dialog:not([open])")) return NodeFilter.FILTER_REJECT;
+      if (parent.closest("[data-travel-day],#guide-search-panel,[data-guide-floating-tools],#sources,[data-guide-module='sources'],script,style,input,textarea,select,template,dialog:not([open])")) return NodeFilter.FILTER_REJECT;
       const hiddenAncestor = parent.closest("[hidden],[aria-hidden='true']");
       if (hiddenAncestor && !hiddenAncestor.hasAttribute("data-day-panel")) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
@@ -199,31 +256,31 @@ function initSearch(options = {}) {
     }).filter((item) => Number.isInteger(Number(item.sourceId)) && item.score > 0).sort((a, b) => b.score - a.score).slice(0, 8);
   };
   const showDefault = () => {
-    el.results.innerHTML = '<p class="guide-search-hint"><span>普通搜索精确匹配攻略正文；</span><span>高级搜索模糊匹配资料来源。</span></p>';
+    el.results.innerHTML = '<p class="guide-search-hint"><span>普通搜索精确匹配攻略正文；</span><span>高级搜索模糊匹配补充阅读。</span></p>';
   };
   const renderBody = () => {
     const query = text(el.input.value);
     if (!query) { clearMarks(); showDefault(); return; }
     const count = markBody(query);
     if (count) { el.results.innerHTML = `<p class="guide-search-hint">正文命中 ${count} 处，已定位首个结果。</p>`; return; }
-    el.results.innerHTML = `<p class="guide-search-empty">攻略正文未找到"${escapeHtml(query)}"。可点击"高级搜索"查询资料来源。</p>`;
+    el.results.innerHTML = `<p class="guide-search-empty">攻略正文未找到"${escapeHtml(query)}"。可点击"高级搜索"查询补充阅读。</p>`;
   };
   const renderSources = () => {
     const query = text(el.input.value);
     clearMarks();
     if (!query) { showDefault(); return; }
-    if (!sourceIndex.length) { el.results.innerHTML = '<p class="guide-search-empty">本攻略未建立可用的资料来源索引。</p>'; return; }
+    if (!sourceIndex.length) { el.results.innerHTML = '<p class="guide-search-empty">本攻略暂无补充阅读。</p>'; return; }
     const matches = sourceMatches(query);
     el.results.innerHTML = matches.length
-      ? `<p class="guide-search-hint">资料来源中找到 ${matches.length} 条相关笔记。</p>${matches.map((item) => `<article class="guide-search-result"><strong>[${escapeHtml(item.sourceId)}] ${escapeHtml(item.title)}</strong><small>${escapeHtml([...(item.cities || []), ...(item.tags || [])].join(" · "))}</small><small class="guide-search-result-hints">线索：${escapeHtml((item.searchHints || []).slice(0, 3).join(" · "))}</small><a href="#source-${escapeHtml(item.sourceId)}">查看资料来源</a></article>`).join("")}`
-      : `<p class="guide-search-empty">资料来源中未找到"${escapeHtml(query)}"。</p>`;
+      ? `<p class="guide-search-hint">补充阅读中找到 ${matches.length} 条相关资料。</p>${matches.map((item) => `<article class="guide-search-result"><strong>[${escapeHtml(item.sourceId)}] ${escapeHtml(item.title)}</strong><small>${escapeHtml([...(item.cities || []), ...(item.tags || [])].join(" · "))}</small><small class="guide-search-result-hints">线索：${escapeHtml((item.searchHints || []).slice(0, 3).join(" · "))}</small><a href="#source-${escapeHtml(item.sourceId)}">查看补充阅读</a></article>`).join("")}`
+      : `<p class="guide-search-empty">补充阅读中未找到"${escapeHtml(query)}"。</p>`;
   };
   const isMobileViewport = global.matchMedia?.("(max-width: 760px)")?.matches || Number(global.navigator?.maxTouchPoints || 0) > 0;
   const shouldAutoFocus = options.autoFocus ?? !isMobileViewport;
   const open = () => { root.dispatchEvent(new CustomEvent("guide:floating-actions-close")); el.panel.hidden = false; root.body?.classList.add("guide-search-open"); el.trigger.setAttribute("aria-expanded", "true"); if (!text(el.input.value)) showDefault(); if (shouldAutoFocus) el.input.focus(); };
   const close = () => { global.clearTimeout(inputTimer); clearMarks(); el.panel.hidden = true; root.body?.classList.remove("guide-search-open"); el.trigger.setAttribute("aria-expanded", "false"); (root.querySelector("[data-guide-floating-toggle]") || el.trigger).focus(); };
   const clear = () => { global.clearTimeout(inputTimer); el.input.value = ""; clearMarks(); showDefault(); el.input.focus(); };
-  if (el.advanced && !sourceIndex.length) { el.advanced.disabled = true; el.advanced.title = "本攻略未建立资料来源索引"; }
+  if (el.advanced && !sourceIndex.length) { el.advanced.disabled = true; el.advanced.title = "本攻略暂无补充阅读"; }
   setNavigation();
   showDefault();
   el.trigger.addEventListener("click", () => el.panel.hidden ? open() : close());
@@ -464,30 +521,113 @@ function initImagePreview(options = {}) {
   const image = dialog.querySelector("img");
   const closeButton = dialog.querySelector("button");
   if (!image || !closeButton) return;
+  const galleries = new Map();
+  root.querySelectorAll("[data-travel-gallery]").forEach(gallery => {
+    const track = gallery.querySelector("[data-travel-photo-track]");
+    const slides = [...track.querySelectorAll("[data-preview-image]")];
+    const dots = [...gallery.querySelectorAll("[data-travel-photo-index]")];
+    if (slides.length < 2) return;
+    let current = 0;
+    let pointer = null;
+    let dragged = false;
+    const steps = [...gallery.querySelectorAll("[data-travel-photo-step]")];
+    const source = gallery.closest("[data-travel-item]")?.querySelector("[data-travel-photo-source]");
+    const show = (index, scroll = true) => {
+      current = Math.max(0, Math.min(index, slides.length - 1));
+      dots.forEach((dot, i) => dot.setAttribute("aria-pressed", String(i === current)));
+      steps.forEach(step => { step.disabled = !slides[current + Number(step.dataset.travelPhotoStep)]; });
+      gallery.querySelector("[data-travel-photo-count]").textContent = `${current + 1} / ${slides.length}`;
+      const credit = slides[current].closest("figure")?.querySelector("[data-travel-photo-credit]");
+      if (source && credit && source.dataset.photoIndex !== String(current)) {
+        source.replaceChildren(credit.content.cloneNode(true));
+        source.hidden = !source.firstElementChild;
+        source.dataset.photoIndex = String(current);
+      }
+      if (scroll) track.scrollTo?.({ left: track.clientWidth * current, behavior: "auto" });
+      return slides[current];
+    };
+    if (track._travelGallery) { galleries.set(gallery, track._travelGallery); return; }
+    track.addEventListener("scroll", () => { if (track.clientWidth) show(Math.round(track.scrollLeft / track.clientWidth), false); }, { passive: true });
+    track.addEventListener("pointerdown", event => { pointer = [event.clientX, event.clientY]; dragged = false; });
+    track.addEventListener("pointermove", event => {
+      if (pointer && Math.abs(event.clientX - pointer[0]) > 8 && Math.abs(event.clientX - pointer[0]) > Math.abs(event.clientY - pointer[1])) dragged = true;
+    });
+    track.addEventListener("pointercancel", () => { pointer = null; });
+    track.addEventListener("pointerup", () => { pointer = null; });
+    track.addEventListener("click", event => {
+      if (dragged && event.detail > 0) event.stopPropagation();
+      dragged = false;
+    }, true);
+    track.addEventListener("keydown", event => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+      event.preventDefault();
+      show(current + (event.key === "ArrowRight" ? 1 : -1));
+    });
+    dots.forEach((dot, i) => dot.addEventListener("click", () => show(i)));
+    steps.forEach(step => step.addEventListener("click", () => show(current + Number(step.dataset.travelPhotoStep))));
+    track._travelGallery = { slides, show, index: () => current };
+    galleries.set(gallery, track._travelGallery);
+    show(0, false);
+  });
+  let controls = dialog.querySelector("[data-travel-preview-controls]");
+  if (!controls && galleries.size) {
+    controls = root.createElement("div");
+    controls.className = "travel-photo-controls";
+    controls.dataset.travelPreviewControls = "";
+    controls.innerHTML = '<button type="button" aria-label="上一张照片">上一张</button><span aria-live="polite"></span><button type="button" aria-label="下一张照片">下一张</button>';
+    controls.hidden = true;
+    dialog.append(controls);
+    const [previous, next] = controls.querySelectorAll("button");
+    previous.addEventListener("click", () => dialog._travelPreviewStep?.(-1));
+    next.addEventListener("click", () => dialog._travelPreviewStep?.(1));
+    dialog.addEventListener("keydown", event => {
+      if (controls.hidden || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      event.preventDefault();
+      dialog._travelPreviewStep?.(event.key === "ArrowRight" ? 1 : -1);
+    });
+  }
   const close = dialog._travelPreviewClose || (() => {
     dialog.close?.();
     dialog.removeAttribute("open");
-    dialog._travelLastFocus?.focus?.();
+    dialog._travelLastFocus?.focus?.({ preventScroll: true });
     dialog._travelLastFocus = null;
   });
   dialog._travelPreviewClose = close;
-  triggers.forEach((trigger) => {
+  const paint = trigger => {
+    image.src = trigger.currentSrc || trigger.dataset.previewImage || trigger.src;
+    image.alt = trigger.alt || trigger.querySelector("img")?.alt || "图片预览";
+  };
+  triggers.forEach(trigger => {
     if (trigger.dataset.previewReady === "true") return;
     const open = () => {
-      dialog._travelLastFocus = root.activeElement;
-      image.src = trigger.currentSrc || trigger.dataset.previewImage || trigger.src;
-      image.alt = trigger.alt || "图片预览";
+      dialog._travelLastFocus = trigger;
+      const gallery = galleries.get(trigger.closest("[data-travel-gallery]"));
+      if (controls) controls.hidden = !gallery;
+      if (gallery && controls) {
+        const [previous, next] = controls.querySelectorAll("button");
+        const show = index => {
+          paint(gallery.show(index));
+          const current = gallery.index();
+          controls.querySelector("span").textContent = `${current + 1} / ${gallery.slides.length}`;
+          previous.disabled = current === 0;
+          next.disabled = current === gallery.slides.length - 1;
+        };
+        dialog._travelPreviewStep = delta => show(gallery.index() + delta);
+        show(gallery.slides.indexOf(trigger));
+      } else paint(trigger);
       if (typeof dialog.showModal === "function") dialog.showModal(); else dialog.setAttribute("open", "");
     };
     trigger.tabIndex = trigger.tabIndex >= 0 ? trigger.tabIndex : 0;
     trigger.dataset.previewReady = "true";
     trigger.addEventListener("click", open);
-    trigger.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } });
+    if (trigger.tagName !== "BUTTON") trigger.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); }
+    });
   });
   if (dialog.dataset.previewDialogReady !== "true") {
     closeButton.addEventListener("click", close);
-    dialog.addEventListener("click", (event) => { if (event.target === dialog) close(); });
-    dialog.addEventListener("cancel", (event) => { event.preventDefault(); close(); });
+    dialog.addEventListener("click", event => { if (event.target === dialog) close(); });
+    dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
     dialog.dataset.previewDialogReady = "true";
   }
   return { close };
@@ -503,6 +643,10 @@ function initExchange(options = {}) {
   const input = card.querySelector('[data-exchange-input], #exchange-amount');
   const lastUpdated = card.querySelector('[data-exchange-last-updated]');
   const localInput = card.querySelector('[data-exchange-local-input]');
+  const fromSelect = card.querySelector('[data-exchange-from]');
+  const toSelect = card.querySelector('[data-exchange-to]');
+  const swapButton = card.querySelector('[data-exchange-swap]');
+  const pairMode = !!(fromSelect && toSelect && localInput);
   const currencyButtons = [...card.querySelectorAll('[data-exchange-currency]')];
   const localLabel = card.querySelector('[data-exchange-local-label]');
   const rateBase = card.querySelector('[data-exchange-rate-base]');
@@ -541,23 +685,38 @@ function initExchange(options = {}) {
   const integerFormat = (value) => Number.isFinite(value) ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(value) : '—';
   const stamp = (date) => new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(date);
   const validAmount = (field) => field && field.value !== '' && Number.isFinite(Number(field.value)) && Number(field.value) >= 0;
+  const cacheKey = `travel-guide-exchange:quotes:${base}`;
+  const amountValue = field => Number(String(field?.value || '').replace(/,/g, ''));
   const updateMnemonic = () => {
     if (!mnemonic) return;
     const quote = Number(rates?.[selectedCurrency]);
     if (!(quote > 0)) {
-      mnemonic.textContent = '刷新汇率后生成';
+      mnemonic.textContent = '';
+      const block = mnemonic.closest('.guide-quickcalc__mnemonic');
+      if (block) block.hidden = true;
       if (mnemonicExample) { mnemonicExample.textContent = ''; mnemonicExample.hidden = true; }
       return;
     }
-    let unit = 1;
-    while (unit / quote < 2 && unit < 1000000000) unit *= 10;
-    const factor = Math.round(unit / quote * 10) / 10;
-    const factorText = rateFormat(factor);
-    mnemonic.textContent = unit === 1 ? `当地金额 × ${factorText} ≈ 人民币` : `当地金额 ÷ ${integerFormat(unit)} × ${factorText} ≈ 人民币`;
-    if (mnemonicExample) {
-      mnemonicExample.textContent = unit > 1 ? `整${unit === 10000 ? '万' : integerFormat(unit)}标价：去掉 ${String(unit).length - 1} 个 0，再乘 ${factorText}` : '';
-      mnemonicExample.hidden = unit === 1;
+    // Choose one simple operation, optionally after removing trailing zeros.
+    // Hide when no integer multiplier/divisor is within 8% of the quote.
+    let best = null;
+    for (let zeros = 0; zeros <= 6; zeros++) {
+      for (const operation of ['divide', 'multiply']) {
+        const exact = operation === 'divide' ? quote / (10 ** zeros) : (10 ** zeros) / quote;
+        const factor = Math.round(exact);
+        if (factor < 1 || factor > 10) continue;
+        const ratio = operation === 'divide' ? quote / (10 ** zeros * factor) : quote * factor / (10 ** zeros);
+        const error = Math.abs(ratio - 1);
+        const cost = (zeros ? 1 : 0) + (factor === 1 ? 0 : 1);
+        if (error <= .08 && (!best || cost < best.cost || (cost === best.cost && error < best.error))) best = { zeros, operation, factor, error, cost };
+      }
     }
+    const block = mnemonic.closest('.guide-quickcalc__mnemonic');
+    if (block) block.hidden = !best;
+    if (!best) { mnemonic.textContent = ''; return; }
+    const action = best.factor === 1 ? '' : `${best.operation === 'divide' ? '除以' : '乘'} ${best.factor}`;
+    mnemonic.textContent = `${selectedCurrency} ${best.zeros ? `去掉 ${best.zeros} 个 0${action ? '，再' : ''}` : ''}${action || (best.zeros ? '' : '金额不变')}，约等于人民币`;
+    if (mnemonicExample) { mnemonicExample.textContent = ''; mnemonicExample.hidden = true; }
   };
   const updateRateLabels = () => {
     targets.forEach((currency) => {
@@ -566,6 +725,7 @@ function initExchange(options = {}) {
       const quote = rates?.[currency];
       node.textContent = Number.isFinite(quote) && quote > 0 ? `1 ${base} ≈ ${format(quote)} ${currency}` : '待刷新';
     });
+    if (pairMode) selectedCurrency = [fromSelect.value, toSelect.value].find(code => code !== base && code !== 'USD') || targets.find(code => code !== 'USD') || 'USD';
     if (rateBase) {
       const quote = Number(rates?.[selectedCurrency]);
       rateBase.textContent = quote > 0 ? `1 ${base} ≈ ${rateFormat(quote)} ${selectedCurrency}` : '刷新后获取参考汇率';
@@ -596,6 +756,13 @@ function initExchange(options = {}) {
       const value = Number(reverseAmount?.value);
       const quote = Number(rates?.[reverseCurrency?.value]);
       reverseResult.textContent = Number.isFinite(value) && value >= 0 && quote > 0 ? `约 ${format(value / quote)} CNY（中间价）` : '刷新汇率后换算成人民币';
+    }
+    if (pairMode) {
+      const n = amountValue(localInput);
+      const result = n / Number(rates?.[fromSelect.value]) * Number(rates?.[toSelect.value]);
+      input.value = String(localInput.value).trim() && Number.isFinite(n) && n >= 0 && Number.isFinite(result) ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: ['VND', 'LAK', 'JPY', 'KRW', 'IDR'].includes(toSelect.value) ? 0 : 2 }).format(result) : '';
+      input.style.fontSize = input.value.length > 13 ? '23px' : '';
+      return;
     }
     if (localInput) {
       const quote = Number(rates?.[selectedCurrency]);
@@ -634,7 +801,7 @@ function initExchange(options = {}) {
       if (!response.ok) throw new Error(`exchange request failed: ${response.status}`);
       const payload = await response.json();
       const nextRates = readRates(payload);
-      if (!nextRates || targets.some((currency) => !Number.isFinite(nextRates[currency]) || nextRates[currency] <= 0)) throw new Error('exchange response incomplete');
+      if (!nextRates || [...targets, ...(pairMode ? ['USD', base] : [])].some((currency) => !Number.isFinite(nextRates[currency]) || nextRates[currency] <= 0)) throw new Error('exchange response incomplete');
       return { rates: nextRates, date: payload.time_last_update_utc || payload.date || '', endpoint };
     } finally {
       if (timer) global.clearTimeout(timer);
@@ -653,8 +820,11 @@ function initExchange(options = {}) {
       rates = result.rates;
       updateRateLabels();
       updateResults();
+      if (pairMode) {
+        try { global.localStorage.setItem(cacheKey, JSON.stringify({ rates, date: result.date || new Date().toISOString() })); } catch (_) { /* Storage may be unavailable; in-memory conversion remains usable. */ }
+      }
       if (lastUpdated) {
-        lastUpdated.textContent = `更新时间：${stamp(new Date())}${result.date ? `；数据日期：${result.date}` : ''}`;
+        lastUpdated.textContent = pairMode ? `汇率日期：${result.date || stamp(new Date())}` : `更新时间：${stamp(new Date())}${result.date ? `；数据日期：${result.date}` : ''}`;
         lastUpdated.hidden = false;
       }
       writeStatus('已更新；数据仅作中间价参考。', !localInput);
@@ -690,7 +860,7 @@ function initExchange(options = {}) {
     root.dispatchEvent(new View.CustomEvent('guide:floating-actions-close'));
     if (typeof dialog?.showModal === 'function' && !dialog.open) dialog.showModal();
     else dialog?.setAttribute('open', '');
-    localInput?.focus({ preventScroll: true });
+    (pairMode ? dialogClose : localInput)?.focus({ preventScroll: true });
   };
   const onDialogCloseClick = () => {
     if (typeof dialog?.close === 'function' && dialog.open) dialog.close();
@@ -698,6 +868,23 @@ function initExchange(options = {}) {
   };
   const onDialogBackdropClick = (event) => { if (event.target === dialog) onDialogCloseClick(); };
   const onDialogClosed = () => root.querySelector('[data-guide-floating-toggle]')?.focus({ preventScroll: true });
+  let previousFrom = fromSelect?.value, previousTo = toSelect?.value;
+  const rememberPair = () => { previousFrom = fromSelect?.value; previousTo = toSelect?.value; updateRateLabels(); updateResults(); };
+  const onFromChange = () => { if (fromSelect.value === toSelect.value) toSelect.value = previousFrom; rememberPair(); };
+  const onToChange = () => { if (toSelect.value === fromSelect.value) fromSelect.value = previousTo; rememberPair(); };
+  const onSwap = () => { [fromSelect.value, toSelect.value] = [toSelect.value, fromSelect.value]; rememberPair(); };
+  fromSelect?.addEventListener('change', onFromChange);
+  toSelect?.addEventListener('change', onToChange);
+  swapButton?.addEventListener('click', onSwap);
+  if (pairMode) {
+    try {
+      const cached = JSON.parse(global.localStorage.getItem(cacheKey));
+      if (cached?.rates?.[base] === 1 && [...targets, 'USD'].every(code => Number.isFinite(cached.rates[code]) && cached.rates[code] > 0)) {
+        rates = cached.rates;
+        if (lastUpdated) { lastUpdated.textContent = `汇率日期：${cached.date}`; lastUpdated.hidden = false; }
+      }
+    } catch (_) { /* An invalid cache is ignored; manual refresh remains available. */ }
+  }
   input.addEventListener('input', onInput);
   localInput?.addEventListener('input', onLocalInput);
   currencyButtons.forEach((button) => button.addEventListener('click', onCurrencyClick));
@@ -717,6 +904,9 @@ function initExchange(options = {}) {
     refresh,
     update: updateResults,
     destroy() {
+      fromSelect?.removeEventListener('change', onFromChange);
+      toSelect?.removeEventListener('change', onToChange);
+      swapButton?.removeEventListener('click', onSwap);
       input.removeEventListener('input', onInput);
       localInput?.removeEventListener('input', onLocalInput);
       currencyButtons.forEach((button) => button.removeEventListener('click', onCurrencyClick));
@@ -792,22 +982,12 @@ function initWeatherForecast(options = {}) {
   const daysUntilStart = tripStart ? Math.round((tripStart - today) / 86400000) : 0;
   const withinForecastWindow = !tripStart || (daysUntilStart <= 7 && (!tripEnd || today <= tripEnd));
   const enabled = options.enabled ?? (card.dataset.weatherEnabled === "true" || (card.dataset.weatherEnabled !== "false" && withinForecastWindow));
-  const tagHtml = (row) => {
-    const items = [];
-    if (row.rain >= 10 || row.hours >= 5 || /雷暴/.test(row.weather)) items.push(["室内备选", "risk"]);
-    else if (row.rain >= 3 || row.hours >= 2 || row.chance >= 50) items.push(["带雨具", "warn"]);
-    else items.push(["户外可行", "good"]);
-    if (row.gust >= 40) items.push(["船班核验", "risk"]);
-    if (row.feel >= 35 && row.uv >= 8) items.push(["高温防晒", "warn"]);
-    else if (row.uv >= 8) items.push(["防晒", "warn"]);
-    return items.map(([label, kind]) => '<span class="guide-weather-chip ' + kind + '">' + label + "</span>").join("");
-  };
   const render = (rowsByLocation) => {
     grid.innerHTML = locations.map((location) => {
       const rows = rowsForLocation(rowsByLocation, location);
       if (!rows) return '<article class="guide-weather-location is-error"><h4>' + escapeHtml(location.name) + "<small>" + escapeHtml(location.label || "") + '</small></h4><p class="guide-weather-location-error">该地点暂时获取失败，请稍后重试。</p></article>';
-      const body = rows.map((row) => '<tr><td>' + formatDate(row.date) + '</td><td class="weather">' + escapeHtml(row.weather) + "<br>" + format(row.min) + "–" + format(row.max) + '°C</td><td class="metric">最高约 ' + format(row.feel) + '°C</td><td class="metric">' + format(row.rain, 1) + " mm · " + format(row.hours) + " 小时<br>降雨 " + format(row.chance) + '%</td><td class="metric">' + format(row.gust) + " km/h · UV " + format(row.uv) + "<br>日落 " + escapeHtml(row.sunset || "待核验") + '</td><td class="key">' + tagHtml(row) + "</td></tr>").join("");
-      return '<article class="guide-weather-location"><h4>' + escapeHtml(location.name) + "<small>" + escapeHtml(location.label || "") + '</small></h4><div class="guide-weather-table-wrap"><table class="guide-weather-table"><thead><tr><th>日期</th><th>天气 / 温度</th><th>体感</th><th>雨量 / 雨时</th><th>阵风 / UV / 日落</th><th>关键提示</th></tr></thead><tbody>' + body + "</tbody></table></div></article>";
+      const body = rows.map((row) => '<tr><td>' + formatDate(row.date) + '</td><td class="weather">' + escapeHtml(row.weather) + "<br>" + format(row.min) + "–" + format(row.max) + '°C</td><td class="metric">最高约 ' + format(row.feel) + '°C</td><td class="metric">' + format(row.rain, 1) + " mm · " + format(row.hours) + " 小时<br>降雨 " + format(row.chance) + '%</td><td class="metric">' + format(row.gust) + " km/h · UV " + format(row.uv) + "<br>日落 " + escapeHtml(row.sunset || "—") + "</td></tr>").join("");
+      return '<article class="guide-weather-location"><h4>' + escapeHtml(location.name) + "<small>" + escapeHtml(location.label || "") + '</small></h4><div class="guide-weather-table-wrap"><table class="guide-weather-table"><thead><tr><th>日期</th><th>天气 / 温度</th><th>体感</th><th>雨量 / 雨时</th><th>阵风 / UV / 日落</th></tr></thead><tbody>' + body + "</tbody></table></div></article>";
     }).join("");
     if (easterEgg) easterEgg.hidden = !Object.values(rowsByLocation).some((rows) => rows?.some((row) => Number(row.chance) >= threshold));
     syncDayWeather(rowsByLocation);
@@ -865,11 +1045,11 @@ function initWeatherForecast(options = {}) {
       render(rows);
       if (dataKind) { dataKind.textContent = failedCount ? "部分刷新成功" : "已刷新：Open‑Meteo 预报"; dataKind.classList.remove("is-waiting"); }
       status.textContent = failedCount
-        ? "已显示 " + successes.length + " 个地点，" + failedCount + " 个地点暂时获取失败；官方公告优先。"
-        : "天气已刷新。关键标签用于快速调整节奏；灾害预警、海况、道路及交通仍以官方公告为准。";
+        ? "已更新 " + successes.length + " 个地点，" + failedCount + " 个地点获取失败。"
+        : "天气已刷新。";
       if (updatedAt) updatedAt.innerHTML = "<strong>更新时间：</strong>" + new Intl.DateTimeFormat("zh-CN", { dateStyle: "short", timeStyle: "short" }).format(new Date());
     } catch (_error) {
-      status.textContent = global.location?.protocol === "file:" ? "本地 file:// 可能限制天气请求，请用本地 HTTP 打开后重试；正文不受影响。" : "暂无法获取天气，请稍后重试，并以官方公告为准。";
+      status.textContent = global.location?.protocol === "file:" ? "天气请求失败，请通过本地 HTTP 预览后重试。" : "天气请求失败，请重试。";
     } finally {
       refreshButton.disabled = false;
       card.classList.remove("is-loading");
@@ -1084,6 +1264,7 @@ function initDayTabs(options = {}) {
   const select = (requestedIndex, settings = {}) => {
     const nextIndex = Math.min(tabs.length - 1, Math.max(0, Number(requestedIndex) || 0));
     const previousIndex = activeIndex;
+    if (nextIndex !== previousIndex) root.dispatchEvent(new CustomEvent("guide:before-day-change"));
     const direction = nextIndex >= previousIndex ? "forward" : "backward";
     const targetTab = tabs[nextIndex];
     const targetPanel = panels[nextIndex];
@@ -1108,7 +1289,7 @@ function initDayTabs(options = {}) {
     }
     if (settings.scroll !== false) targetTab.scrollIntoView?.({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest", inline: "center" });
     if (settings.focus) targetTab.focus({ preventScroll: true });
-    if (settings.emit !== false) root.dispatchEvent(new CustomEvent("guide:day-change", { detail: { dayNumber: Number(targetTab.dataset.dayTab) || nextIndex + 1, date: targetPanel.dataset.itineraryDate || "" } }));
+    if (settings.emit !== false) root.dispatchEvent(new CustomEvent("guide:day-change", { detail: { dayNumber: Number(targetTab.dataset.dayTab) || nextIndex + 1, date: targetPanel.dataset.itineraryDate || "", restorePosition: settings.restorePosition } }));
   };
   tabs.forEach((tab, index) => {
     const onClick = () => {
@@ -1135,12 +1316,12 @@ function initDayTabs(options = {}) {
     listeners.push([tab, "click", onClick], [tab, "keydown", onKeyDown]);
   });
   select(activeIndex, { emit: false, scroll: false });
-  const openDay = (dayNumber, focus = false) => {
+  const openDay = (dayNumber, focus = false, settings = {}) => {
     const index = tabs.findIndex(tab => Number(tab.dataset.dayTab) === Number(dayNumber));
     if (index < 0) return false;
-    select(index, { focus, scroll: false });
+    select(index, { focus, scroll: false, restorePosition: settings.restorePosition });
     const anchor = root.querySelector('[data-day-tabs]') || tabs[index];
-    anchor.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    if (settings.scroll !== false) anchor.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
     return true;
   };
   const onDayJump = event => {
@@ -1163,7 +1344,7 @@ function initDayTabs(options = {}) {
   listeners.push([root, 'click', onDayJump], [global, 'hashchange', onDayHash], [global, 'popstate', onDayHash]);
   onDayHash();
   const api = {
-    select,
+    select, openDay,
     destroy() {
       listeners.forEach(([node, type, listener]) => node.removeEventListener(type, listener));
       if (dayTabsInstances.get(root) === api) dayTabsInstances.delete(root);
@@ -1184,12 +1365,16 @@ function initExecutionLinks(options = {}) {
     if (item.dataset.executionReady === "true") return;
     item.dataset.executionReady = "true";
     item.addEventListener("click", (event) => { if (!event.target.closest("a,button,input")) focus(item); });
-    item.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); focus(item); } });
+    item.addEventListener("keydown", (event) => {
+      if (event.defaultPrevented || event.target !== item) return;
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); focus(item); }
+    });
   });
   root.querySelectorAll("[data-show-day-map]").forEach((button) => {
     if (button.dataset.dayMapReady === "true") return;
     button.dataset.dayMapReady = "true";
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      if (event.defaultPrevented) return;
       const control = root.querySelector(`[data-day-tab="${CSS.escape(button.dataset.showDayMap)}"]`);
       control?.click();
       root.querySelector("#itinerary-explore")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
@@ -1828,14 +2013,15 @@ function initRouteSummary(options = {}) {
     if (card.dataset.routeSummaryReady === "true") return;
     card.dataset.routeSummaryReady = "true";
     const rows = [...card.querySelectorAll(".route-stop-row")];
+    const transfers = [...card.querySelectorAll(".route-timeline-transfer")];
     const segments = [...card.querySelectorAll(".route-timeline-transfer[data-route-segment-index]")];
     const summary = card.querySelector(".route-timeline-summary");
     const baseTimes = rows.map((row) => Number(row.querySelector(".route-stop-time")?.dataset.initialMinutes));
     const supportsRecalculation = rows.length > 1 && segments.length === rows.length - 1
       && baseTimes.every(Number.isFinite) && segments.every((segment) => Number.isFinite(Number(segment.dataset.defaultDuration)));
     const updateTimeline = () => {
-      if (!supportsRecalculation || !summary) return;
-      rows.forEach((row, index) => {
+      if (!summary) return;
+      if (supportsRecalculation) rows.forEach((row, index) => {
         const time = row.querySelector(".route-stop-time");
         time.textContent = formatClock(baseTimes[index]);
         let estimate = row.querySelector(".route-arrival-estimate");
@@ -1845,15 +2031,15 @@ function initRouteSummary(options = {}) {
         estimate.hidden = !delta;
         estimate.textContent = delta ? `预计 ${formatClock(Number(time.dataset.arrivalMinutes ?? baseTimes[index]) + delta)}（${delta > 0 ? "晚于" : "早于"}计划 ${Math.abs(delta)} 分）` : "";
       });
-      const knownMovement = segments.reduce((total, segment) => {
-        const duration = Number(segment.dataset.selectedDuration);
+      const knownMovement = transfers.reduce((total, segment) => {
+        const duration = Number(segment.dataset.selectedDuration ?? segment.dataset.defaultDuration ?? segment.dataset.plannedDuration);
         return total + (Number.isFinite(duration) ? duration : 0);
       }, 0);
       const destination = rows.at(-1)?.querySelector(".route-place-link")?.textContent.trim() || "终点";
       const strong = (value) => { const node = document.createElement("b"); node.textContent = value; return node; };
       summary.replaceChildren(
         document.createTextNode("共 "), strong(rows.length + " 个停靠点"),
-        document.createTextNode(" · 已知移动 "), strong(formatDuration(knownMovement)),
+        document.createTextNode(" · 已知移动 "), strong(knownMovement > 0 ? formatDuration(knownMovement) : "暂无估算"),
         document.createTextNode(" · 终点 "), strong(destination)
       );
     };
@@ -2163,7 +2349,7 @@ function initFloatingActions(options = {}) {
     if (open) actions.removeAttribute("inert"); else actions.setAttribute("inert", "");
     if (toggleIcon) toggleIcon.textContent = open ? "×" : "•••";
     syncFocusable();
-    if (open && config.focus) (visibleActions().at(-1) || toggle).focus();
+    if (open && config.focus) (visibleActions()[0] || toggle).focus();
   };
   const clearHoverTimers = () => {
     globalThis.clearTimeout(hoverOpenTimer);
@@ -2254,8 +2440,8 @@ function initGuidePage(options = {}) {
       return null;
     }
   };
-  if (options.sources !== false) active.sources = initialize("sources", () => initSourceLinks({ root, ...(options.sourceOptions || {}) }));
-  if (options.search !== false) active.search = initialize("search", () => initSearch({ root, ...(options.searchOptions || {}) }));
+  if (options.sources !== false) active.sources = initialize("sources", () => initSourceLinks({ root, revealOverview: () => active.travel?.revealOverview(), ...(options.sourceOptions || {}) }));
+  if (options.search !== false) active.search = initialize("search", () => initSearch({ root, revealHit: hit => active.travel?.revealSearchHit(hit) || hit, clearReveal: () => active.travel?.clearSearchTarget(), ...(options.searchOptions || {}) }));
   if (options.copy !== false) active.copy = initialize("copy", () => initCopyControls({ root, ...(options.copyOptions || {}) }));
   if (options.checklist !== false) active.checklist = initialize("checklist", () => initChecklist({ root, editable: true, ...(options.checklistOptions || {}) }));
   if (options.preview !== false) active.preview = initialize("preview", () => initImagePreview({ root, ...(options.previewOptions || {}) }));
@@ -2263,6 +2449,7 @@ function initGuidePage(options = {}) {
   if (options.exchange) active.exchange = initialize("exchange", () => initExchange({ root, ...(options.exchange === true ? {} : options.exchange) }));
   if (options.weather) active.weather = initialize("weather", () => initWeatherForecast({ root, ...(options.weather === true ? {} : options.weather) }));
   if (options.dayTabs) active.dayTabs = initialize("dayTabs", () => initDayTabs({ root, ...(options.dayTabs === true ? {} : options.dayTabs) }));
+  if (active.dayTabs) active.travel = initialize("travel", () => initTravelMode(root, active.dayTabs));
   if (options.execution) active.execution = initialize("execution", () => initExecutionLinks({ root, ...(options.execution === true ? {} : options.execution) }));
   if (options.calendar) active.calendar = initialize("calendar", () => initCalendarExport({ root, ...(options.calendar === true ? {} : options.calendar) }));
   if (options.expenses) active.expenses = initialize("expenses", () => initExpenseTracker({ root, ...(options.expenses === true ? {} : options.expenses) }));
@@ -2270,6 +2457,7 @@ function initGuidePage(options = {}) {
   if (options.flights) active.flights = initialize("flights", () => initFlightRecords({ root, ...(options.flights === true ? {} : options.flights) }));
   if (options.routeSummary !== false) active.routeSummary = initialize("routeSummary", () => initRouteSummary({ root, ...(options.routeSummaryOptions || {}) }));
   if (options.themes !== false) active.themes = initialize("themes", () => initThemeSwitcher({ root, ...(options.themeOptions || {}) }));
+  if (options.floatingActions !== false) initialize("homeScreen", () => initHomeScreen(root));
   if (options.floatingActions !== false) active.floatingActions = initialize("floatingActions", () => initFloatingActions({ root, ...(options.floatingActionOptions || {}) }));
   if (options.floatingActions !== false && options.niumou !== false) active.niumou = initialize("niumou", () => initNiumouFloatingToggle({ root, ...(options.niumouOptions || {}) }));
   return active;
@@ -2282,4 +2470,299 @@ global.TravelGuideInteractions = Object.freeze({
   initFlightRecords, recognizeFlightTicket, sanitizeFlightRecord, safeFlightDetailUrl,
   initRouteSummary, initThemeSwitcher, initFloatingActions, initNiumouFloatingToggle, initGuidePage, readJsonIndex
 });
+
+const travelModeInstances = new WeakMap();
+function initTravelMode(root, dayTabs) {
+  const existing = travelModeInstances.get(root);
+  if (existing) return existing;
+  const itinerary = root.querySelector("#itinerary");
+  const toggle = root.querySelector("[data-travel-toggle]");
+  const title = itinerary?.querySelector("[data-travel-day-title]");
+  if (!dayTabs || !toggle || !title) return null;
+
+  const map = itinerary.querySelector("#itinerary-explore");
+  const directoryButton = itinerary.querySelector("[data-travel-directory-open]");
+  const directoryDialog = itinerary.querySelector("[data-travel-directory-dialog]");
+  const directoryList = directoryDialog?.querySelector("[data-travel-directory-list]");
+  const closeDirectory = (focus = false) => {
+    if (!directoryDialog?.open) return;
+    directoryDialog.close();
+    directoryList.replaceChildren();
+    if (focus) directoryButton.focus({ preventScroll: true });
+  };
+  const key = "guide-travel-mode:" + (root.body.dataset.guideId || global.location.pathname);
+  let saved = {};
+  try { saved = JSON.parse(global.sessionStorage.getItem(key)) || {}; } catch (_) {}
+  const days = saved.days && typeof saved.days === "object" ? saved.days : {};
+  const photoPages = saved.photos && typeof saved.photos === "object" ? saved.photos : {};
+  let overviewScroll = Number.isFinite(saved.overviewScroll) ? saved.overviewScroll : 0;
+  let panel = itinerary.querySelector("[data-day-panel]:not([hidden])");
+  if (!panel) return null;
+  let activeCard = null;
+  let destination = null;
+  let frame = 0;
+  let jumpTimer;
+  const isTravel = () => root.body.dataset.travelView === "travel";
+  const dayKey = () => panel.dataset.itineraryDate || panel.dataset.dayPanel;
+  const cards = () => [...panel.querySelectorAll("[data-travel-item]")];
+  const save = () => {
+    try { global.sessionStorage.setItem(key, JSON.stringify({ mode: isTravel() ? "travel" : "overview", date: dayKey(), days, photos: photoPages, overviewScroll })); } catch (_) {}
+  };
+  const reduced = () => global.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  const scrollToElement = (element, smooth = true) => {
+    element?.scrollIntoView?.({ block: "start", behavior: smooth && !reduced() ? "smooth" : "auto" });
+  };
+  const highlight = card => {
+    activeCard?.classList.remove("is-travel-selected");
+    activeCard = card;
+    activeCard?.classList.add("is-travel-selected");
+    panel.querySelectorAll("[data-travel-jump]").forEach(button => {
+      if (button.dataset.travelJump === card?.dataset.travelItem) button.setAttribute("aria-current", "step");
+      else button.removeAttribute("aria-current");
+    });
+  };
+  const capture = () => {
+    if (!panel) return;
+    if (!isTravel()) { overviewScroll = global.scrollY; return; }
+    days[dayKey()] = { itemId: activeCard?.dataset.travelItem, offset: activeCard?.getBoundingClientRect().top, atTop: global.scrollY < 8 };
+    cards().forEach(card => {
+      const gallery = card.querySelector("[data-travel-photo-track]")?._travelGallery;
+      if (gallery) photoPages[card.dataset.travelItem] = gallery.index();
+    });
+  };
+  const jump = (card, focus = false, smooth = true) => {
+    if (!card) return;
+    highlight(card);
+    destination = card;
+    global.clearTimeout(jumpTimer);
+    if (focus) card.focus({ preventScroll: true });
+    scrollToElement(card, smooth);
+    jumpTimer = global.setTimeout(() => { destination = null; }, 1000);
+  };
+  const restore = () => {
+    const position = days[dayKey()];
+    const target = cards().find(card => card.dataset.travelItem === position?.itemId);
+    highlight(target || cards()[0]);
+    global.scrollTo?.(0, !position?.atTop && target && Number.isFinite(position?.offset)
+      ? global.scrollY + target.getBoundingClientRect().top - position.offset : 0);
+  };
+  const updateDay = () => {
+    title.textContent = panel.querySelector(".day-overview h3")?.textContent || "";
+    cards().forEach(card => {
+      const index = photoPages[card.dataset.travelItem];
+      if (Number.isInteger(index)) card.querySelector("[data-travel-photo-track]")?._travelGallery?.show(index);
+    });
+    const hasMapPoints = panel.querySelector(".travel-map-fallback");
+    const nearby = map?.querySelector(`[data-nearby-panel="day-${panel.dataset.dayPanel}"]`);
+    if (map) map.classList.toggle("travel-map-empty", !hasMapPoints && !nearby);
+  };
+  const onDayChange = (event) => {
+    const next = [...itinerary.querySelectorAll("[data-day-panel]")].find(day => Number(day.dataset.dayPanel) === event.detail.dayNumber);
+    if (!next || next === panel) return;
+    closeDirectory();
+    panel = next;
+    destination = null;
+    if (isTravel()) {
+      updateDay();
+      if (event.detail.restorePosition !== false) restore();
+    }
+    save();
+  };
+  const setMode = (travel, restorePosition = true) => {
+    if (travel === isTravel()) return;
+    capture();
+    closeDirectory();
+    destination = null;
+    root.body.dataset.travelView = travel ? "travel" : "overview";
+    title.hidden = !travel;
+    itinerary.querySelectorAll("[data-travel-day]").forEach(day => { day.hidden = !travel; });
+    toggle.querySelector("[data-travel-mode-label]").textContent = travel ? "返回概览" : "进入出行模式";
+    if (travel) updateDay();
+    if (restorePosition) {
+      if (travel) restore();
+      else global.scrollTo?.(0, overviewScroll);
+    }
+    root.dispatchEvent(new CustomEvent("guide:floating-actions-close"));
+    save();
+  };
+  const selectDay = (number) => dayTabs.openDay(number, false, { scroll: false, restorePosition: false });
+  const focusMap = () => scrollToElement(map);
+  const locatePlace = (id, focus) => {
+    const candidates = cards().filter(card => card.dataset.travelPlace === id);
+    const target = candidates.includes(activeCard) ? activeCard : candidates[0];
+    jump(target, focus);
+    return Boolean(target);
+  };
+  const onMapMarker = (event) => {
+    if (isTravel() && event.detail?.key === "day-" + panel.dataset.dayPanel && locatePlace(event.detail.placeId, true)) event.preventDefault();
+  };
+  const onClick = (event) => {
+    const button = event.target.closest?.("button");
+    if (!button) return;
+    if (button === toggle) {
+      setMode(!isTravel());
+      const focusTarget = isTravel() ? itinerary.querySelector('[data-day-tab][aria-selected="true"]') : root.querySelector("[data-guide-floating-toggle]");
+      focusTarget?.focus({ preventScroll: true });
+    } else if (button.dataset.showDayMap && map) {
+      event.preventDefault();
+      selectDay(button.dataset.showDayMap);
+      setMode(true, false);
+      focusMap();
+    } else if (button === directoryButton && directoryList && !directoryDialog.open) {
+      const directory = panel.querySelector(".travel-stop-directory")?.cloneNode(true);
+      if (!directory) return;
+      directory.classList.replace("travel-stop-directory", "travel-directory-items");
+      directoryList.replaceChildren(directory);
+      directoryDialog.showModal();
+      const current = directory.querySelector("[aria-current]") || directory.querySelector("button");
+      if (current) {
+        directoryList.scrollTop = current.getBoundingClientRect().top - directoryList.getBoundingClientRect().top;
+        current.focus({ preventScroll: true });
+      }
+    } else if (button.hasAttribute("data-travel-directory-close")) {
+      closeDirectory(true);
+    } else if (button.dataset.travelJump) {
+      const target = cards().find(card => card.dataset.travelItem === button.dataset.travelJump);
+      const fromDirectory = Boolean(directoryDialog?.open);
+      closeDirectory();
+      jump(target, true, !fromDirectory);
+    } else if (button.hasAttribute("data-travel-detail-toggle")) {
+      const detail = root.getElementById(button.getAttribute("aria-controls"));
+      if (!detail) return;
+      detail.hidden = !detail.hidden;
+      button.setAttribute("aria-expanded", String(!detail.hidden));
+    } else if (button.dataset.travelFallbackPlace) {
+      locatePlace(button.dataset.travelFallbackPlace, true);
+    } else if (button.dataset.travelMapPlace) {
+      highlight(button.closest("[data-travel-item]"));
+      root.dispatchEvent(new CustomEvent("guide:focus-place", {
+        detail: { placeId: button.dataset.travelMapPlace, dayNumber: Number(panel.dataset.dayPanel) }
+      }));
+      focusMap();
+    }
+  };
+  const clearSearchTarget = () => itinerary.querySelector(".is-travel-search-hit")?.classList.remove("is-travel-search-hit");
+  const revealSearchHit = mark => {
+    clearSearchTarget();
+    if (!isTravel()) return mark;
+    const item = mark.closest("[data-item-id]");
+    const day = item?.closest("[data-day-panel]");
+    if (day) {
+      selectDay(day.dataset.dayPanel);
+      const card = cards().find(node => node.dataset.travelItem === item.dataset.itemId);
+      if (card) {
+        clearSearchTarget();
+        card.classList.add("is-travel-search-hit");
+        jump(card);
+        return card;
+      }
+    }
+    if (!mark.closest("#itinerary-explore")) setMode(false, false);
+    return mark;
+  };
+  const revealHash = () => {
+    if (!isTravel() || !global.location.hash) return;
+    const id = global.location.hash.slice(1);
+    if (/^day-\d+$/.test(id) || id === "itinerary" || id === "itinerary-explore") return;
+    const target = root.getElementById(id);
+    if (target?.closest("main,header,footer")) {
+      setMode(false, false);
+      scrollToElement(target, false);
+    }
+  };
+  const onScroll = () => {
+    if (!isTravel() || frame || destination || directoryDialog?.open) return;
+    frame = global.requestAnimationFrame(() => {
+      frame = 0;
+      if (!isTravel() || destination || directoryDialog?.open) return;
+      const boundary = itinerary.querySelector("[data-day-tabs]").getBoundingClientRect().bottom + 40;
+      const visible = cards().filter(card => card.getBoundingClientRect().top <= boundary);
+      highlight(visible.at(-1) || cards()[0]);
+    });
+  };
+
+  root.addEventListener("guide:before-day-change", () => { if (isTravel()) capture(); });
+  directoryDialog?.addEventListener("cancel", event => { event.preventDefault(); closeDirectory(true); });
+  directoryDialog?.addEventListener("click", event => { if (event.target === directoryDialog) closeDirectory(true); });
+  root.addEventListener("guide:day-change", onDayChange);
+  root.addEventListener("guide:map-marker-select", onMapMarker);
+  root.addEventListener("click", onClick, true);
+  global.addEventListener("hashchange", revealHash);
+  global.addEventListener("popstate", revealHash);
+  global.addEventListener("scroll", onScroll, { passive: true });
+  global.addEventListener("wheel", () => { if (!directoryDialog?.open) destination = null; }, { passive: true });
+  global.addEventListener("touchmove", () => { if (!directoryDialog?.open) destination = null; }, { passive: true });
+  global.addEventListener("pagehide", () => { capture(); save(); });
+  toggle.hidden = false;
+  if (saved.mode === "travel" && (!global.location.hash || /^#day-\d+$/.test(global.location.hash))) {
+    const remembered = [...itinerary.querySelectorAll("[data-day-panel]")].find(day =>
+      (day.dataset.itineraryDate || day.dataset.dayPanel) === saved.date);
+    if (remembered && !global.location.hash) selectDay(remembered.dataset.dayPanel);
+    const rememberedOverview = overviewScroll;
+    setMode(true);
+    overviewScroll = rememberedOverview;
+    save();
+  }
+  const api = { revealSearchHit, clearSearchTarget, revealOverview: () => setMode(false, false) };
+  travelModeInstances.set(root, api);
+  return api;
+}
+
+function initHomeScreen(root) {
+  const button = root.querySelector("[data-guide-home-screen]");
+  const dialog = root.querySelector("[data-guide-home-screen-dialog]");
+  const view = root.defaultView;
+  if (!button || !dialog || view?.location.protocol !== "https:" || button.dataset.homeScreenReady) return;
+  button.dataset.homeScreenReady = "true";
+
+  const userAgent = view.navigator.userAgent;
+  const isAppleMobile = /iPhone|iPad|iPod/.test(userAgent) ||
+    (/Macintosh/.test(userAgent) && view.navigator.maxTouchPoints > 1);
+  const instructions = isAppleMobile
+    ? "用 Safari 打开这份攻略，点「分享」→「添加到主屏幕」。如果看到「作为网页 App 打开」，请开启。"
+    : /Android/.test(userAgent)
+      ? "在浏览器菜单里选「安装应用」或「添加到主屏幕」。如果当前应用没有这个选项，请用 Chrome 打开这份攻略。"
+      : /Macintosh/.test(userAgent)
+        ? "在 Safari 里选择「文件」→「添加到程序坞」。也可以使用浏览器地址栏或菜单里的安装选项。"
+        : "在浏览器地址栏或菜单里选择「安装应用」或「将此页面安装为应用」。";
+  const standalone = view.matchMedia?.("(display-mode: standalone)");
+  let installed = false;
+  let pendingPrompt;
+  const sync = () => { button.hidden = Boolean(installed || standalone?.matches || view.navigator.standalone); };
+  const returnFocus = () => root.querySelector("[data-guide-floating-toggle]")?.focus();
+  const close = dialog.querySelector("[data-guide-home-screen-close]");
+  const showInstructions = () => {
+    dialog.querySelector("[data-guide-home-screen-help]").textContent = instructions;
+    dialog.showModal();
+    close.focus();
+  };
+
+  view.addEventListener("beforeinstallprompt", event => {
+    if (typeof event.prompt !== "function") return;
+    event.preventDefault();
+    pendingPrompt = event;
+  });
+  view.addEventListener("appinstalled", () => {
+    installed = true;
+    pendingPrompt = undefined;
+    sync();
+  });
+  standalone?.addEventListener?.("change", sync);
+  button.addEventListener("click", async () => {
+    if (!pendingPrompt) {
+      showInstructions();
+      return;
+    }
+    const event = pendingPrompt;
+    pendingPrompt = undefined;
+    returnFocus();
+    try {
+      await event.prompt();
+    } catch {
+      showInstructions();
+    }
+  });
+  dialog.addEventListener("close", returnFocus);
+  sync();
+}
 })(window);

@@ -1,8 +1,8 @@
 {
   "name": "travel-guide-builder-v2",
-  "version": "2.52.0",
+  "version": "2.61.0",
   "private": true,
-  "description": "旅行攻略制作 2.52.0：数据管线、确定性渲染、逐日附近逛逛与 Supabase 协作契约（DOM 测试依赖 jsdom）",
+  "description": "旅行攻略制作 2.61.0：数据管线、确定性渲染、逐日附近逛逛与 Supabase 协作契约（DOM 测试依赖 jsdom）",
   "engines": {
     "node": "^20.19.0 || ^22.15.0 || >=24.0.0"
   },

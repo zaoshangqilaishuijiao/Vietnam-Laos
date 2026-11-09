@@ -3,10 +3,9 @@ const fs = require("fs");
 const path = require("path");
 const { TextDecoder } = require("util");
 const { ISO_DATE, DAY_MS, parseIsoDate, buildDateRange: buildRange } = require("./date-utils.js");
-const { XHS_GENERAL_REQUIRED_COUNT, GUIDE_DATA_VERSION, PAGE_TEMPLATE_VERSION, ASSET_SENTINELS, GUIDE_THEMES } = require("./shared-constants.js");
+const { GUIDE_DATA_VERSION, PAGE_TEMPLATE_VERSION, ASSET_SENTINELS, GUIDE_THEMES } = require("./shared-constants.js");
 const { readOption } = require("./cli-options.js");
 const { scanElementBlock } = require("./html-fragment.js");
-const { xiaohongshuIdentity } = require("./xiaohongshu-identity.js");
 const { HIDDEN_STATUSES } = require("./nearby-policy.js");
 let moduleRegistryCache = null;
 function getModuleRegistry() {
@@ -212,21 +211,8 @@ function validateGuideContract(source, options = {}) {
       const value = Number(readAttribute(match[0], "value"));
       if (value !== id) failures.push(`资料来源 source-${id} 的显示编号必须为 ${id}。`);
     }
-    const sourcesBlock = extractElementBlock(markup, "data-guide-module", "sources");
-    const xhsGroup = extractElementBlock(sourcesBlock, "data-source-group", "xiaohongshu");
-    if (!xhsGroup) failures.push('资料来源缺少 data-source-group="xiaohongshu" 分组。');
-    else {
-      const xhsGroupOpenTag = xhsGroup.match(/^<[^>]+>/i)?.[0] || "";
-      const requiredCount = Number(readAttribute(xhsGroupOpenTag, "data-xhs-required-count"));
-      const readCount = Number(readAttribute(xhsGroupOpenTag, "data-xhs-read-count"));
-      if (requiredCount !== XHS_GENERAL_REQUIRED_COUNT) failures.push(`小红书来源分组必须声明 data-xhs-required-count="${XHS_GENERAL_REQUIRED_COUNT}"。`);
-      if (!Number.isInteger(readCount) || readCount < 0) failures.push("小红书来源分组的 data-xhs-read-count 必须是非负整数。");
-      const xhsLinks = new Set([...xhsGroup.matchAll(/https?:\/\/(?:www\.)?(?:xiaohongshu\.com|xhslink\.com)(?:[^\s"'<>]*)/gi)].map((match) => match[0].replace(/[),.;]+$/, "")));
-      const noteIds = [...xhsLinks].map(xiaohongshuIdentity);
-      if (noteIds.some(id => !id) || new Set(noteIds).size !== xhsLinks.size) failures.push("小红书笔记 ID 必须可识别且去重，分享参数不能重复计数。");
-      if (Number.isInteger(readCount) && readCount >= 0 && xhsLinks.size !== readCount) failures.push(`小红书实际读取数声明为 ${readCount}，但资料来源中仅发现 ${xhsLinks.size} 个去重原始链接。`);
-      if (readCount < XHS_GENERAL_REQUIRED_COUNT || xhsLinks.size < XHS_GENERAL_REQUIRED_COUNT) failures.push(`完整攻略必须至少读取 ${XHS_GENERAL_REQUIRED_COUNT} 篇去重的小红书攻略，不可用不足原因或替代来源豁免。`);
-    }
+    // Research quotas are checked against private JSON in the generation pipeline,
+    // never inferred from the number of public reading links.
 
     ["route-map-loading", "route-map-status"].forEach((id) => {
       const count = (markup.match(new RegExp(`\\bid\\s*=\\s*["']${id}["']`, "gi")) || []).length;
@@ -357,6 +343,11 @@ function validateGuideContract(source, options = {}) {
             if (!Array.isArray(item?.cities) || !Array.isArray(item?.tags)) failures.push(`资料来源索引 ${index + 1} 的 cities/tags 必须是数组。`);
             if (Number.isInteger(item?.sourceId) && !sourceIds.has(String(item.sourceId))) failures.push(`资料来源索引 ${index + 1} 指向不存在的 #source-${item.sourceId}。`);
           });
+          if (Array.isArray(items)) {
+            const indexed = new Set(items.map(item => String(item?.sourceId)));
+            if (indexed.size !== items.length) failures.push("补充阅读索引 sourceId 不得重复。");
+            if ([...sourceIds].some(id => !indexed.has(id))) failures.push("补充阅读列表与搜索索引不同步。");
+          }
         } catch (_error) { failures.push("资料来源索引 JSON 无法解析。"); }
       }
     }
@@ -369,6 +360,25 @@ function validateGuideContract(source, options = {}) {
       const overviewActionGroups = [...markup.matchAll(/<div\b[^>]*\bclass\s*=\s*["'][^"']*\bday-overview-actions\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi)].map((match) => match[1]);
       if (!/data-day-tabs(?:\s|=|>)/i.test(markup) || !dayTabTags.length) failures.push("2.0 逐日行程缺少日期 Tab 容器或按钮。");
       if (dayTabTags.length !== dayPanelTags.length || dayPanelTags.length !== itineraryEntries.length) failures.push(`日期 Tab、日程面板与日期卡数量必须一致，当前为 ${dayTabTags.length}/${dayPanelTags.length}/${itineraryEntries.length}。`);
+      if (features.has("travel-mode")) {
+        if ((markup.match(/\bdata-travel-toggle(?:\s|>)/g) || []).length !== 1 ||
+            (markup.match(/\bdata-travel-day-title(?:\s|>)/g) || []).length !== 1) {
+          failures.push("双模式必须共用一个切换入口和一个出行日标题。");
+        }
+        const ids = (html, attribute) => [...html.matchAll(new RegExp(`\\b${attribute}="([^"]+)"`, "g"))].map(match => match[1]);
+        for (const tag of dayPanelTags) {
+          const day = readAttribute(tag, "data-day-panel");
+          const panel = extractElementBlock(markup, "data-day-panel", day);
+          const overview = ids(panel, "data-item-id");
+          const travel = ids(panel, "data-travel-item");
+          const directory = ids(panel, "data-travel-jump");
+          if ((panel.match(/\bdata-travel-day(?:\s|>)/g) || []).length !== 1 ||
+              overview.length !== travel.length || overview.length !== directory.length ||
+              overview.some((id, index) => id !== travel[index] || id !== directory[index])) {
+            failures.push(`第 ${day} 天概览、出行卡片与地点目录必须保持同一行程顺序。`);
+          }
+        }
+      }
       if (intensityBlocks.length !== dayPanelTags.length) failures.push(`每张逐日卡必须有一个 🌟 强度提示，当前为 ${intensityBlocks.length}/${dayPanelTags.length}。`);
       intensityBlocks.forEach((block, index) => {
         const score = Number(block.match(/([0-5](?:\.0|\.5))\s*🌟/)?.[1]);

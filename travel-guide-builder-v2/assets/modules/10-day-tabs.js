@@ -15,6 +15,7 @@ function initDayTabs(options = {}) {
   const select = (requestedIndex, settings = {}) => {
     const nextIndex = Math.min(tabs.length - 1, Math.max(0, Number(requestedIndex) || 0));
     const previousIndex = activeIndex;
+    if (nextIndex !== previousIndex) root.dispatchEvent(new CustomEvent("guide:before-day-change"));
     const direction = nextIndex >= previousIndex ? "forward" : "backward";
     const targetTab = tabs[nextIndex];
     const targetPanel = panels[nextIndex];
@@ -39,7 +40,7 @@ function initDayTabs(options = {}) {
     }
     if (settings.scroll !== false) targetTab.scrollIntoView?.({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest", inline: "center" });
     if (settings.focus) targetTab.focus({ preventScroll: true });
-    if (settings.emit !== false) root.dispatchEvent(new CustomEvent("guide:day-change", { detail: { dayNumber: Number(targetTab.dataset.dayTab) || nextIndex + 1, date: targetPanel.dataset.itineraryDate || "" } }));
+    if (settings.emit !== false) root.dispatchEvent(new CustomEvent("guide:day-change", { detail: { dayNumber: Number(targetTab.dataset.dayTab) || nextIndex + 1, date: targetPanel.dataset.itineraryDate || "", restorePosition: settings.restorePosition } }));
   };
   tabs.forEach((tab, index) => {
     const onClick = () => {
@@ -66,12 +67,12 @@ function initDayTabs(options = {}) {
     listeners.push([tab, "click", onClick], [tab, "keydown", onKeyDown]);
   });
   select(activeIndex, { emit: false, scroll: false });
-  const openDay = (dayNumber, focus = false) => {
+  const openDay = (dayNumber, focus = false, settings = {}) => {
     const index = tabs.findIndex(tab => Number(tab.dataset.dayTab) === Number(dayNumber));
     if (index < 0) return false;
-    select(index, { focus, scroll: false });
+    select(index, { focus, scroll: false, restorePosition: settings.restorePosition });
     const anchor = root.querySelector('[data-day-tabs]') || tabs[index];
-    anchor.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+    if (settings.scroll !== false) anchor.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
     return true;
   };
   const onDayJump = event => {
@@ -94,7 +95,7 @@ function initDayTabs(options = {}) {
   listeners.push([root, 'click', onDayJump], [global, 'hashchange', onDayHash], [global, 'popstate', onDayHash]);
   onDayHash();
   const api = {
-    select,
+    select, openDay,
     destroy() {
       listeners.forEach(([node, type, listener]) => node.removeEventListener(type, listener));
       if (dayTabsInstances.get(root) === api) dayTabsInstances.delete(root);

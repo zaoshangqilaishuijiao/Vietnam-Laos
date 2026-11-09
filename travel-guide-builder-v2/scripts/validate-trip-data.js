@@ -9,6 +9,7 @@ const { readOption, readCsvOption } = require("./cli-options.js");
 const { safeFlightDetailUrl, sanitizeFlightAirport } = require("./flight-record-rules.js");
 const { validateStructure } = require("./schema-validator.js");
 const { legacyNearbyDay, validateNearbyPolicy } = require("./nearby-policy.js");
+const { READING_TOPICS, readingSelection } = require("./supplementary-reading.js");
 
 const DATE_POLICIES = new Set(["fixed", "explicit", "season", "undated"]);
 const { validateXiaohongshuIdentities } = require("./xiaohongshu-identity.js");
@@ -26,6 +27,10 @@ const GENERIC_TRAVELER_FIT_PATTERNS = [
   /适合想(?:要)?(?:进一步|深度)?体验(?:当地|目的地).*(?:人|旅行者)/
 ];
 const NON_ACTIONABLE_SUPPLEMENT_PATTERNS = [
+  /(?:不代替|不能代替)航司(?:值机|登机|值机[／/]登机)要求/,
+  /机场计划到达节点为个人缓冲/,
+  /(?:或)?按实际情况改(?:乘)?出租车/,
+  /酒店接驳班次另行落实/,
   /^下雨(?:时)?(?:记得|要|需)?带伞$/,
   /^(?:出发|出门)(?:前)?(?:记得|要|需)?(?:查看|看|确认|留意)(?:一下)?天气(?:预报)?$/,
   /^(?:临近)?出发(?:前)?(?:查看|核验|确认|留意)天气(?:预报)?$/,
@@ -361,6 +366,13 @@ function validateTripData(data, options = {}) {
       requireArray(source.topics, `sources[${index}].topics`);
       requireArray(source.cities, `sources[${index}].cities`);
       requireString(source.verificationStatus, `sources[${index}].verificationStatus`);
+      if (source.reading !== undefined) {
+        if (!object(source.reading)) fail(`sources[${index}].reading 必须是补充阅读对象。`);
+        if (!READING_TOPICS.includes(source.reading?.topic)) fail(`sources[${index}].reading.topic 必须是阅读用途分类。`);
+        requireString(source.reading?.title, `sources[${index}].reading.title`);
+        requireString(source.reading?.value, `sources[${index}].reading.value`);
+        if (!/^https?:\/\//i.test(source.url || "")) fail(`sources[${index}].reading 需要可打开的原始链接。`);
+      }
     });
     if (!unique(sourceIds)) fail("sources.id 必须唯一。");
     const sourceIdSet = new Set(sourceIds);
@@ -383,7 +395,7 @@ function validateTripData(data, options = {}) {
     const preservedLegacy = [];
     // Citation numbers are labels. Match the complete source evidence before
     // comparing legacy records so pruning an unused source can renumber safely.
-    const sourceEvidence = ({ id, ...evidence }) => evidence;
+    const sourceEvidence = ({ id, reading, ...evidence }) => evidence;
     const sourcesByUrl = new Map();
     sourceList.forEach(source => {
       const entries = sourcesByUrl.get(source.url) || [];
@@ -406,10 +418,9 @@ function validateTripData(data, options = {}) {
     const baselineRecords = new Map(["recommendations", "venueSuggestions"].map(key => [key,
       new Map((baseline?.[key] || []).map(item => [item?.id, alignBaselineRefs(item)]))]));
     const baselinePlaces = new Map((baseline?.places || []).map(place => [place?.id, alignBaselineRefs(place)]));
-    const baselineSources = new Map((baseline?.sources || []).map(source => [baselineSourceIds.get(source.id),
-      { ...source, id: baselineSourceIds.get(source.id) }]));
+    const baselineSources = new Map((baseline?.sources || []).map(source => [baselineSourceIds.get(source.id), sourceEvidence(source)]));
     const currentPlaces = new Map((data.places || []).map(place => [place?.id, place]));
-    const currentSources = new Map(sourceList.map(source => [source?.id, source]));
+    const currentSources = new Map(sourceList.map(source => [source?.id, sourceEvidence(source)]));
     const unchangedSources = (...nodes) => {
       const refs = new Set();
       const walk = node => {
@@ -561,6 +572,8 @@ function validateTripData(data, options = {}) {
           requireString(link?.url, `${label}.links[${linkIndex}].url`);
           if (string(link?.url) && !/^https?:\/\//i.test(link.url)) fail(`${label}.links[${linkIndex}].url 必须是可直接打开的 http(s) 链接。`);
         });
+        requireArray(item.photos ?? [], `${label}.photos`).forEach((photo, index) =>
+          checkSourcedImage(photo, `${label}.photos[${index}]`, true, false));
         const referenceImages = requireArray(item.referenceImages ?? [], `${label}.referenceImages`);
         if (referenceImages.length > 4) fail(`${label}.referenceImages 最多包含 4 张图片。`);
         referenceImages.forEach((image, imageIndex) => {
@@ -577,7 +590,7 @@ function validateTripData(data, options = {}) {
         if (item.navigationMode !== undefined && item.navigationOptions !== undefined) fail(`${label}.navigationMode 与 navigationOptions 不得同时设置；单一偏好使用 navigationMode，多方案对比使用 navigationOptions。`);
         if (item.navigationOptions !== undefined) {
           const options = requireArray(item.navigationOptions, `${label}.navigationOptions`);
-          if (options.length < 2 || options.length > 5) fail(`${label}.navigationOptions 必须包含 2–5 种已核验交通方案。`);
+          if (!options.length) fail(`${label}.navigationOptions 不得为空；按实际路段保留有依据的方案，不要求凑齐方式或数量。`);
           const seenModes = new Set(); let recommendedCount = 0;
           options.forEach((option, optionIndex) => {
             const optionLabel = `${label}.navigationOptions[${optionIndex}]`;
@@ -802,6 +815,10 @@ function validateTripData(data, options = {}) {
         }
         requireString(candidate?.whyNow, `${cLabel}.whyNow`);
         if (string(candidate?.whyNow)) checkSupplement(candidate.whyNow, `${cLabel}.whyNow`);
+        if (candidate?.shopPick !== undefined) {
+          requireString(candidate.shopPick, `${cLabel}.shopPick`);
+          if (string(candidate.shopPick)) checkSupplement(candidate.shopPick, `${cLabel}.shopPick`);
+        }
         if (!target?.image) fail(`${cLabel} 必须引用配有可追溯图片的推荐。`);
         if (target?.image && !sourceList.some(source => source.id === target.image.sourceId && source.type === "xiaohongshu" && string(source.author) && string(source.url))) fail(`${cLabel} 图片来源必须是带作者和原帖链接的小红书笔记。`);
       });
@@ -965,7 +982,6 @@ function validateTripData(data, options = {}) {
     if (audit?.status !== "completed") fail("研究尚未完成或已受阻，必须暂停，不能生成详细内容或 HTML。 ");
     if (audit?.xiaohongshuRequiredCount !== XHS_GENERAL_REQUIRED_COUNT) fail(`researchAudit.xiaohongshuRequiredCount 必须为 ${XHS_GENERAL_REQUIRED_COUNT}。`);
     const xhsSources = sourceList.filter((source) => source.type === "xiaohongshu");
-    if (xhsSources.length && !data?.features?.sourceIndex) fail("完整攻略包含已读取的小红书来源时必须启用 sourceIndex，以保证高级搜索可定位资料来源。");
     const contentIdentityError = validateXiaohongshuIdentities(sourceList);
     if (contentIdentityError) fail(contentIdentityError);
     const xhsUrls = xhsSources.map((source) => String(source.url || "").replace(/[),.;]+$/, ""));
@@ -1097,8 +1113,7 @@ function validateTripData(data, options = {}) {
       });
     }
     if (data?.features?.sourceIndex) {
-      const sourceIndex = requireArray(data.sourceIndex, "sourceIndex");
-      if (!sourceIndex.length) fail("启用 sourceIndex 时 sourceIndex 不能为空。");
+      const sourceIndex = requireArray(data.sourceIndex ?? [], "sourceIndex");
       const indexedSourceIds = [];
       sourceIndex.forEach((item, index) => {
         if (!sourceIdSet.has(item?.sourceId)) fail(`sourceIndex[${index}].sourceId 不存在。`);
@@ -1107,23 +1122,14 @@ function validateTripData(data, options = {}) {
         requireArray(item?.cities, `sourceIndex[${index}].cities`);
         const tags = requireArray(item?.tags, `sourceIndex[${index}].tags`);
         const searchHints = requireArray(item?.searchHints, `sourceIndex[${index}].searchHints`);
-        const source = sourceList.find((entry) => entry.id === item?.sourceId);
-        const isXiaohongshu = source?.type === "xiaohongshu";
-        const minimumTagCount = isXiaohongshu ? 10 : 3;
-        const minimumHintCount = isXiaohongshu ? 2 : 1;
         tags.forEach((tag, tagIndex) => requireString(tag, `sourceIndex[${index}].tags[${tagIndex}]`));
         searchHints.forEach((hint, hintIndex) => requireString(hint, `sourceIndex[${index}].searchHints[${hintIndex}]`));
-        if (tags.length < minimumTagCount || (isXiaohongshu && tags.length > 20)) fail(`sourceIndex[${index}] 的${isXiaohongshu ? "小红书" : "资料来源"}标签数量必须为 ${minimumTagCount}${isXiaohongshu ? "–20" : " 条以上"}且去重。`);
         if (new Set(tags.map((tag) => tag.trim().toLocaleLowerCase())).size !== tags.length) fail(`sourceIndex[${index}].tags 必须去重。`);
-        if (searchHints.length < minimumHintCount || (isXiaohongshu && searchHints.length > 6)) fail(`sourceIndex[${index}].searchHints 必须包含 ${minimumHintCount}${isXiaohongshu ? "–6" : " 条以上"}可搜索提示词。`);
         if (new Set(searchHints.map((hint) => hint.trim().toLocaleLowerCase())).size !== searchHints.length) fail(`sourceIndex[${index}].searchHints 必须去重。`);
       });
       if (!unique(indexedSourceIds)) fail("sourceIndex.sourceId 必须唯一。 ");
-      xhsSources.forEach((source) => {
-        if (!indexedSourceIds.includes(source.id)) fail(`小红书来源 ${source.id} 缺少 sourceIndex，无法通过高级搜索定位。`);
-      });
     }
-    sourceIds.filter((id) => !usedSourceIds.has(id)).forEach((id) => warn(`来源 ${id} 未被正文内容引用，仅可作为资料索引。`));
+    sourceIds.filter((id) => !usedSourceIds.has(id)).forEach((id) => warn(`研究来源 ${id} 未被正文引用；是否进入补充阅读由 reading 独立筛选。`));
   }
 
   if (options.brief && stage === "content") {
@@ -1204,7 +1210,8 @@ function validateTripData(data, options = {}) {
       dates: dateList.length,
       days: Array.isArray(data?.days) ? data.days.length : 0,
       routeStops: Array.isArray(data?.route?.stopIds) ? data.route.stopIds.length : 0,
-      sources: Array.isArray(data?.sources) ? data.sources.length : 0
+      sources: Array.isArray(data?.sources) ? data.sources.length : 0,
+      supplementaryReading: Array.isArray(data?.sources) ? readingSelection(data).sources.length : 0
     }
   };
 }

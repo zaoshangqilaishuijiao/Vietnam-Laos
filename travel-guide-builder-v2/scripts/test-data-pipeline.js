@@ -14,7 +14,7 @@ const features = { arrivalDeparture: false, exchange: false, weather: false, sou
 const meta = { title: "测试城市执行攻略", subtitle: "2.0 回归", destination: "测试城市", origin: "上海", datePolicy: "fixed", dates: ["2026-09-01"], dateDisplay: "2026年9月1日", travelers: { count: 1, profiles: ["成人"] }, budgetBasis: "单人 CNY", theme: "ink", routeSummary: "中央车站 → 城市公园", hero: { title: "城园初行", subtitle: "从中央车站出发，经城市街区步行前往城市公园，以轻量城市漫步收束。", cover: { src: "images/cover.jpg", alt: "测试城市封面" } } };
 const requirements = { mustVisit: ["城市公园"], avoid: [], preferences: ["步行"], constraints: [], assumptions: [], openQuestions: [] };
 const researchPlan = { xiaohongshuTarget: 10, arrivalDepartureTarget: 0, officialTopics: ["交通"] };
-const sources = Array.from({ length: 10 }, (_, index) => ({ id: index + 1, type: "xiaohongshu", scope: "general", title: `测试笔记 ${index + 1}`, url: `https://www.xiaohongshu.com/explore/test-note-${index + 1}`, topics: ["城市"], cities: ["测试城市"], verificationStatus: "游客经验" }));
+const sources = Array.from({ length: 10 }, (_, index) => ({ id: index + 1, type: "xiaohongshu", scope: "general", title: `测试笔记 ${index + 1}`, url: `https://www.xiaohongshu.com/explore/test-note-${index + 1}`, topics: ["城市"], cities: ["测试城市"], verificationStatus: "游客经验", reading: { topic: "景点与文化", title: `城市参观指南 ${index + 1}`, value: `补充展览背景与建筑细节 ${index + 1}` } }));
 const audit = { status: "completed", xiaohongshuRequiredCount: 10, xiaohongshuReadCount: 10, arrivalDepartureRequiredCount: 0, arrivalDepartureReadCount: 0, xiaohongshuShortfallReason: "", arrivalDepartureShortfallReason: "不适用" };
 
 const request = { schemaVersion: "2.0", stage: "request", meta, features, requirements, researchPlan };
@@ -137,8 +137,8 @@ const groupedSourcesFile = path.join(temp, 'grouped-sources.html');
 run([renderer, write('grouped-sources.json', groupedSourcesContent), groupedSourcesFile]);
 const groupedSourcesDocument = new JSDOM(fs.readFileSync(groupedSourcesFile, 'utf8')).window.document;
 const displayedSourceGroups = [...groupedSourcesDocument.querySelectorAll('#sources [data-source-group]')].map((group) => group.dataset.sourceGroup).join('|');
-if (displayedSourceGroups !== 'baseline|transport|booking|dining|culture|data|xiaohongshu') throw new Error(`资料来源未按核验用途排序：${displayedSourceGroups}`);
-if (groupedSourcesDocument.querySelector('#source-1')?.closest('[data-source-group]')?.dataset.sourceGroup !== 'xiaohongshu' || groupedSourcesDocument.querySelector('#source-11')?.closest('[data-source-group]')?.dataset.sourceGroup !== 'baseline') throw new Error('资料来源重排改变了编号定位或分组');
+if (displayedSourceGroups !== 'reading-0') throw new Error(`补充阅读未按阅读用途展示：${displayedSourceGroups}`);
+if (groupedSourcesDocument.querySelector('#source-11') || groupedSourcesDocument.querySelector('#sources')?.textContent.includes('官方铁路信息')) throw new Error('未入选核验来源泄露到补充阅读');
 const recommendationDocument = new JSDOM(html).window.document;
 const recommendationModules = [...recommendationDocument.querySelectorAll('.recommendation-module')];
 const recommendationCards = [...recommendationDocument.querySelectorAll('.recommendation-item.guide-action-card')];
@@ -154,8 +154,9 @@ if (new URL(firstRecommendation.querySelectorAll('.booking-card-actions a')[1].h
 if (new URL(firstRecommendation.querySelectorAll('.booking-card-actions a')[2].href).searchParams.get('keyword') !== content.recommendations[0].name) throw new Error('推荐小红书入口未使用地点名称');
 if (!firstRecommendation.querySelector('[data-xhs-link][data-xhs-deeplink^="xhsdiscover://search/result?"]')) throw new Error('推荐小红书入口缺少移动端 App Deeplink');
 if (firstRecommendation.querySelector('[data-xhs-link]').dataset.xhsKeyword !== content.recommendations[0].name || firstRecommendation.querySelector('[data-xhs-link]').dataset.xhsDeeplink.includes('mode=')) throw new Error('推荐小红书入口未保留关键词或仍包含非公开 Deeplink 参数');
-const directXhsSource = recommendationDocument.querySelector('#sources [data-source-group="xiaohongshu"] a[data-xhs-link]');
+const directXhsSource = recommendationDocument.querySelector('#sources a[data-xhs-link]');
 if (!directXhsSource?.dataset.xhsDeeplink.startsWith('xhsdiscover://item/')) throw new Error('具体小红书笔记缺少移动端 App Deeplink');
+if (directXhsSource.dataset.xhsDeeplink !== 'xhsdiscover://item/test-note-1' || !directXhsSource.dataset.xhsKeyword?.trim()) throw new Error('原帖ID被截断或缺少具体搜索词');
 if (recommendationDocument.querySelector('.local-knowledge-module h3 span')?.textContent !== '文化习俗' || recommendationDocument.querySelectorAll('.local-knowledge-module .local-knowledge-card').length !== 3) throw new Error('文化习俗模块未固定渲染三张卡片');
 if ([...recommendationDocument.querySelectorAll('.local-knowledge-card > span')].map((item) => item.textContent).join('|') !== '文化特点|会客礼仪|文化禁忌') throw new Error('文化习俗卡片分类或顺序不正确');
 if (recommendationDocument.querySelector('[data-local-knowledge-placement]')) throw new Error('文化习俗卡片不应重复投影到逐日时间线');
@@ -315,6 +316,15 @@ const publicSourceHtml = fs.readFileSync(publicSourceFile, 'utf8');
 if (/AIza[0-9A-Za-z_-]{20,}|sb_publishable_[0-9A-Za-z_-]{8,}/.test(publicSourceHtml)) throw new Error('公开源 HTML 不得含真实 Browser/Publishable Key');
 
 const bothNavigationFields = structuredClone(content);
+const singleNavigation = structuredClone(content);
+singleNavigation.days[0].items[1].navigationOptions = [{mode:'walking',durationMinutes:30,recommended:true}];
+run([validator, write('valid-single-navigation.json', singleNavigation), '--stage=content']);
+const emptyNavigation = structuredClone(singleNavigation);
+emptyNavigation.days[0].items[1].navigationOptions = [];
+run([validator, write('bad-empty-navigation.json', emptyNavigation), '--stage=content'], 1);
+const variedNavigation = structuredClone(singleNavigation);
+variedNavigation.days[0].items[1].navigationOptions.push(...['driving','transit','ferry','tram','bicycling'].map((mode,index)=>({mode,durationMinutes:10+index,recommended:false})));
+run([validator, write('valid-varied-navigation.json', variedNavigation), '--stage=content']);
 bothNavigationFields.days[0].items[1].navigationMode = 'walking';
 bothNavigationFields.days[0].items[1].navigationOptions = [
   {mode:'walking',durationMinutes:30,recommended:true},
@@ -504,12 +514,10 @@ for (const [pathLabel, mutate] of [
 }
 
 const disabledSourceIndex = structuredClone(content); disabledSourceIndex.features.sourceIndex = false;
-const disabledSourceIndexResult = run([validator, write("disabled-source-index.json", disabledSourceIndex), "--stage=content"], 1);
-if (!`${disabledSourceIndexResult.stdout}${disabledSourceIndexResult.stderr}`.includes("必须启用 sourceIndex")) throw new Error("未拦截包含小红书来源但关闭高级搜索索引的攻略");
+run([validator, write("disabled-source-index.json", disabledSourceIndex), "--stage=content"]);
 
 const missingIndexedSource = structuredClone(content); missingIndexedSource.sourceIndex.pop();
-const missingIndexedSourceResult = run([validator, write("missing-indexed-source.json", missingIndexedSource), "--stage=content"], 1);
-if (!`${missingIndexedSourceResult.stdout}${missingIndexedSourceResult.stderr}`.includes("缺少 sourceIndex")) throw new Error("未拦截未建立高级搜索索引的小红书来源");
+run([validator, write("missing-indexed-source.json", missingIndexedSource), "--stage=content"]);
 
 const placeholder = structuredClone(content); placeholder.days[0].items[0].links = [{ label: "占位链接", url: "https://www.example.com/x" }];
 const placeholderResult = run([validator, write("placeholder.json", placeholder), "--stage=content"], 1);

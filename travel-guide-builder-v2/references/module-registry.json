@@ -67,8 +67,8 @@
     },
     {
       "name": "sources",
-      "title": "资料来源",
-      "description": "资料来源",
+      "title": "补充阅读",
+      "description": "仅包含正文之外有实际阅读价值的精选资料；空时隐藏",
       "required": true,
       "navigable": true
     }

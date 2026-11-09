@@ -18,6 +18,8 @@
 
 ## 每日执行条目
 
+所有大交通按已确认时刻正常到发编排，包括飞机、火车、长途巴士和船班。手续、换乘、进出站与接驳时间按实际依据计入；不另加假设性延误缓冲，不因此减少当天内容或默认生成延误预案。已核实的停运、施工、班次变更或正常时刻也明确接不上的冲突，才写具体影响和调整。用户后续报告实际航变时按新事实更新。
+
 `days[].routeNote` 可选，仅用于未启用 `dayNavigation` 的兼容路线串；紧凑当天行程汇总不展示备注。没有路线时不展示，不改动路线、交通或日历数据。
 
 `days[].routeNoteAvatar` 可选，必须同时有 `routeNote`，为相对输出 HTML 的本地 JPG/PNG/WebP 路径（ASCII 文件名）；作为 1em 大小的行内头像显示于说明前。不接受远端地址、绝对路径或父目录跳转，不改变原图文件。
@@ -39,12 +41,12 @@
 - `travelMinutes/stayMinutes`：非负整数；
 - `transportMode`：到达本条目的方式；
 - `navigationMode`（可选）：用户明确指定的单一路线查询方式，取 `driving/motorcycle/tuktuk/walking/transit/bus/ferry/cablecar/mountainrail/tram/monorail/minibus/rickshaw/bicycling`；只控制当日路线汇总及日历链接，不改变时间线和地图的原交通安排。与 `navigationOptions` 互斥。
-- `navigationOptions`（可选）：仅在每种方式和耗时均已核验时填写 2–5 项，每项含 `mode/durationMinutes/recommended`，方式取 `driving/motorcycle/tuktuk/walking/transit/bus/ferry/cablecar/mountainrail/tram/monorail/minibus/rickshaw/bicycling`，且必须恰有一项推荐；推荐项耗时必须等于条目 `travelMinutes`。与 `navigationMode` 互斥。切换仅用于出行对比；跨断点、缺坐标或禁用导航不得生成链接，未确认可达的索道、船班或道路不得强行补成驾车。
-- 新建攻略的每一段地面移动默认先评估“步行、驾车 / 打车、公交 / 地铁”三类候选；合理且能核验耗时的候选写入 `navigationOptions`，再结合总耗时、换乘、步行负担、行李和用户偏好只标记一个 `recommended=true`。用户已明确指定偏好时优先遵循；步行距离过长、公共交通无法到达或绕行明显、驾车受禁行 / 停车条件限制等明显不合理情况，直接不展示该候选，不为凑齐三种方式而虚构时长。
-- 当地实际存在且对该路段有执行价值时，可增加摩托车 `motorcycle`、突突车 `tuktuk`、轮船 / 渡轮 / 水上巴士 `ferry`、索道 / 缆车 `cablecar`、登山缆索或齿轨铁路 `mountainrail`、有轨电车 `tram`、单轨 `monorail`、地方小巴 `minibus`、人力车 `rickshaw` 或骑行 `bicycling`。`minibus` 可承载双条车、吉普尼、多尔穆什、马什鲁特卡等同类地方公共交通，但页面可见名称应使用当地真实名称。特色交通不取代默认评估，也不因“当地特色”而强行出现；必须已核验运营范围、时段、可达性和本段耗时。候选超过 5 项时，优先保留推荐项、合理的默认方式和对本段最有价值的地方方式。Google Maps 不支持专用模式时只打开起终点路线页，不伪造 `travelmode`。
+- `navigationOptions`（可选，旧数据继续兼容）：填写该路段筛选后有价值且已核验方式和耗时的方案，可以只有一种，不设凑数下限或固定展示数量。非空时每项含 `mode/durationMinutes/recommended`，且恰有一项推荐；推荐耗时等于 `travelMinutes`，与 `navigationMode` 互斥。新写路段优先用此字段明确表达已选方案，不能以省略字段代替逐段研究。方式取值沿用 schema；切换只用于出行对比，跨断点、缺坐标或禁用导航不得生成链接。
+- 选择遵循 [逐段交通研究与推荐](research-and-sources.md#逐段交通研究与推荐)：先积累当地游客经验，再匹配实际起终点、时段、门到门耗时、换乘、费用、行李、体力与用户偏好。步行、汽车、公共交通都只是候选，不要求每段齐全或逐类写排除理由。选择应有不同价值，不机械套用“驾车＋摩托车＋步行”组合；不合理、重复或无证据的方案省略，不在网页添加解释性废话。
+- 当地实际适用时，可选择摩托车 `motorcycle`、突突车 `tuktuk`、轮船／渡轮 `ferry`、索道 `cablecar`、登山铁路 `mountainrail`、有轨电车 `tram`、单轨 `monorail`、地方小巴 `minibus`、人力车 `rickshaw` 或骑行 `bicycling`。`minibus` 可承载双条车、吉普尼等，页面使用当地真实名称。特色交通需核实本段运营范围、时段、可达性及耗时，不因目的地常见便套用全程。Google Maps 不支持专用方式时只打开通用起终点路线页，不伪造 `travelmode`。
 - `breakGroundRoute`：长途交通、入住前或退房后断开地面线路；
 - `reservationStatus`：`none`、`pending`、`confirmed` 或 `verify`；
-- `sourceIds`：来源角标。
+- `sourceIds`：本地研究依据关联；只有入选补充阅读的条目才渲染公开角标，不要求所有依据展示。
 
 确定时间必须满足 `endTime > startTime`。同一天相邻确定时间条目必须满足“上一条结束＋当前条目 travelMinutes ≤ 当前条目开始”；否则调整日程或把不确定时间改为柔性安排，不能绕过校验。
 
@@ -81,6 +83,8 @@
 
 - 核验清单显示完成数、总数和百分比，支持全部/未完成/已完成筛选；天气始终位于筛选区域之后。
 - 天气手动刷新成功后，把日期摘要同步到相同 `data-itinerary-date` 的每日卡片，并写入会话缓存；首次加载仍不联网。
-- 每日卡片按相邻地点和到达条目的 `transportMode` 生成紧凑分段卡片；公交/驾车等提供显式方式链接，步行仅显示“建议步行”和可复制起终点，日历也不生成步行查询链接。混合建议保留其他方式按钮，不生成全天多途经点导航。未知方式/缺坐标时说明原因，不擅自默认为驾车。返酒店需要导航时，应显式安排末尾条目以记录交通方式。
+- 每日卡片按相邻地点与到达条目的已选交通方案生成紧凑分段卡片，单方案与多方案均保留 emoji、耗时胶囊、推荐角标和对应路线入口，步行也支持步行导航。日历沿用原计划推荐方式链接，不生成全天多途经点导航。未知方式／缺坐标不擅自改为驾车。返酒店需要导航时显式安排末尾条目。
 - `calendar.mode` 默认为 `daily`：每个旅行日导出一个全天事件；仅当用户明确需要精确提醒时设为 `timed`，只导出已标记且有确定开始时间的条目。SUMMARY 使用简短的 `Day N | 标题`，LOCATION 只放核心地名；DESCRIPTION 由结构化段落生成，只保留主要路线、时间、地点、交通、关键备注、必要链接和住宿。两种模式均由公共 ICS 资产生成，包含 UID、DTSTAMP、显式结束值、CRLF、UTF-8 75 字节折行和文本转义。
 - `features.expenseTracker=true` 时启用本地实际支出记录、预算对比和 CSV 导出；只写 `localStorage`，不修改 `trip-data.json` 的计划预算。
+
+出行模式可为条目设置可选 `days[].items[].photos[]`，每项包含本地相对路径 `src`、可访问描述 `alt` 和原始来源 `sourceId`，数组顺序即相册顺序。需要随图展示的署名和许可分别写入可选 `credit`、`license`，共用许可也可记在来源的 `license`。缺省时可复用同地点推荐的已核实图片。菜单或换乘截图仍使用原有参考资料字段。

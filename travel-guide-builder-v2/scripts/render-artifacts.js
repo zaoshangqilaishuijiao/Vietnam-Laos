@@ -14,7 +14,7 @@ function assertDestination(root, destination) {
 
 // HTML, every referenced local asset and the success report are one rollback unit.
 // Snapshots stay local for recovery; abrupt process termination is not a filesystem transaction.
-function deliverArtifacts({ inputPath, outputPath, html, skillRoot, runtimeAssets = [], reportPath, report }) {
+function deliverArtifacts({ inputPath, outputPath, html, skillRoot, runtimeAssets = [], generatedAssets = {}, reportPath, report }) {
   const sourceRoot = fs.realpathSync(path.dirname(path.resolve(inputPath)));
   fs.mkdirSync(path.dirname(path.resolve(outputPath)), { recursive: true });
   const outputRoot = fs.realpathSync(path.dirname(path.resolve(outputPath)));
@@ -23,6 +23,10 @@ function deliverArtifacts({ inputPath, outputPath, html, skillRoot, runtimeAsset
   for (const relative of collectLocalAssetReferences(html)) {
     const destination = path.resolve(outputRoot, relative);
     assertDestination(outputRoot, destination);
+    if (Object.hasOwn(generatedAssets, relative)) {
+      entries.push({ destination, contents: Buffer.from(generatedAssets[relative]) });
+      continue;
+    }
     const roots = runtime.has(relative) ? [fs.realpathSync(skillRoot)] : [sourceRoot, outputRoot];
     let source;
     for (const root of roots) {

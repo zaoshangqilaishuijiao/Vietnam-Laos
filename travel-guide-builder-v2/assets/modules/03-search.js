@@ -19,6 +19,7 @@ function initSearch(options = {}) {
     if (el.next) el.next.disabled = !hits.length;
   };
   const clearMarks = () => {
+    options.clearReveal?.();
     const parents = new Set();
     root.querySelectorAll("mark.guide-search-hit").forEach((mark) => {
       if (mark.parentNode) parents.add(mark.parentNode);
@@ -33,9 +34,10 @@ function initSearch(options = {}) {
     current = (index + hits.length) % hits.length;
     hits.forEach((mark, i) => mark.classList.toggle("is-current", i === current));
     setNavigation();
-    const panel = hits[current].closest("[data-day-panel]");
+    const target = options.revealHit?.(hits[current]) || hits[current];
+    const panel = target.closest("[data-day-panel]");
     if (panel?.hidden) root.querySelector(`[data-day-tab="${panel.dataset.dayPanel}"]`)?.click();
-    hits[current].scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+    target.scrollIntoView?.({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
   };
   const markBody = (query) => {
     clearMarks();
@@ -44,7 +46,7 @@ function initSearch(options = {}) {
     const walker = root.createTreeWalker(root.body || root, NodeFilter.SHOW_TEXT, { acceptNode(node) {
       const parent = node.parentElement;
       if (!parent || !text(node.nodeValue)) return NodeFilter.FILTER_REJECT;
-      if (parent.closest("#guide-search-panel,[data-guide-floating-tools],#sources,[data-guide-module='sources'],script,style,input,textarea,select,template,dialog:not([open])")) return NodeFilter.FILTER_REJECT;
+      if (parent.closest("[data-travel-day],#guide-search-panel,[data-guide-floating-tools],#sources,[data-guide-module='sources'],script,style,input,textarea,select,template,dialog:not([open])")) return NodeFilter.FILTER_REJECT;
       const hiddenAncestor = parent.closest("[hidden],[aria-hidden='true']");
       if (hiddenAncestor && !hiddenAncestor.hasAttribute("data-day-panel")) return NodeFilter.FILTER_REJECT;
       return NodeFilter.FILTER_ACCEPT;
@@ -82,31 +84,31 @@ function initSearch(options = {}) {
     }).filter((item) => Number.isInteger(Number(item.sourceId)) && item.score > 0).sort((a, b) => b.score - a.score).slice(0, 8);
   };
   const showDefault = () => {
-    el.results.innerHTML = '<p class="guide-search-hint"><span>普通搜索精确匹配攻略正文；</span><span>高级搜索模糊匹配资料来源。</span></p>';
+    el.results.innerHTML = '<p class="guide-search-hint"><span>普通搜索精确匹配攻略正文；</span><span>高级搜索模糊匹配补充阅读。</span></p>';
   };
   const renderBody = () => {
     const query = text(el.input.value);
     if (!query) { clearMarks(); showDefault(); return; }
     const count = markBody(query);
     if (count) { el.results.innerHTML = `<p class="guide-search-hint">正文命中 ${count} 处，已定位首个结果。</p>`; return; }
-    el.results.innerHTML = `<p class="guide-search-empty">攻略正文未找到"${escapeHtml(query)}"。可点击"高级搜索"查询资料来源。</p>`;
+    el.results.innerHTML = `<p class="guide-search-empty">攻略正文未找到"${escapeHtml(query)}"。可点击"高级搜索"查询补充阅读。</p>`;
   };
   const renderSources = () => {
     const query = text(el.input.value);
     clearMarks();
     if (!query) { showDefault(); return; }
-    if (!sourceIndex.length) { el.results.innerHTML = '<p class="guide-search-empty">本攻略未建立可用的资料来源索引。</p>'; return; }
+    if (!sourceIndex.length) { el.results.innerHTML = '<p class="guide-search-empty">本攻略暂无补充阅读。</p>'; return; }
     const matches = sourceMatches(query);
     el.results.innerHTML = matches.length
-      ? `<p class="guide-search-hint">资料来源中找到 ${matches.length} 条相关笔记。</p>${matches.map((item) => `<article class="guide-search-result"><strong>[${escapeHtml(item.sourceId)}] ${escapeHtml(item.title)}</strong><small>${escapeHtml([...(item.cities || []), ...(item.tags || [])].join(" · "))}</small><small class="guide-search-result-hints">线索：${escapeHtml((item.searchHints || []).slice(0, 3).join(" · "))}</small><a href="#source-${escapeHtml(item.sourceId)}">查看资料来源</a></article>`).join("")}`
-      : `<p class="guide-search-empty">资料来源中未找到"${escapeHtml(query)}"。</p>`;
+      ? `<p class="guide-search-hint">补充阅读中找到 ${matches.length} 条相关资料。</p>${matches.map((item) => `<article class="guide-search-result"><strong>[${escapeHtml(item.sourceId)}] ${escapeHtml(item.title)}</strong><small>${escapeHtml([...(item.cities || []), ...(item.tags || [])].join(" · "))}</small><small class="guide-search-result-hints">线索：${escapeHtml((item.searchHints || []).slice(0, 3).join(" · "))}</small><a href="#source-${escapeHtml(item.sourceId)}">查看补充阅读</a></article>`).join("")}`
+      : `<p class="guide-search-empty">补充阅读中未找到"${escapeHtml(query)}"。</p>`;
   };
   const isMobileViewport = global.matchMedia?.("(max-width: 760px)")?.matches || Number(global.navigator?.maxTouchPoints || 0) > 0;
   const shouldAutoFocus = options.autoFocus ?? !isMobileViewport;
   const open = () => { root.dispatchEvent(new CustomEvent("guide:floating-actions-close")); el.panel.hidden = false; root.body?.classList.add("guide-search-open"); el.trigger.setAttribute("aria-expanded", "true"); if (!text(el.input.value)) showDefault(); if (shouldAutoFocus) el.input.focus(); };
   const close = () => { global.clearTimeout(inputTimer); clearMarks(); el.panel.hidden = true; root.body?.classList.remove("guide-search-open"); el.trigger.setAttribute("aria-expanded", "false"); (root.querySelector("[data-guide-floating-toggle]") || el.trigger).focus(); };
   const clear = () => { global.clearTimeout(inputTimer); el.input.value = ""; clearMarks(); showDefault(); el.input.focus(); };
-  if (el.advanced && !sourceIndex.length) { el.advanced.disabled = true; el.advanced.title = "本攻略未建立资料来源索引"; }
+  if (el.advanced && !sourceIndex.length) { el.advanced.disabled = true; el.advanced.title = "本攻略暂无补充阅读"; }
   setNavigation();
   showDefault();
   el.trigger.addEventListener("click", () => el.panel.hidden ? open() : close());

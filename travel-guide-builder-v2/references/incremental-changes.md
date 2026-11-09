@@ -14,6 +14,8 @@
 
 只改受影响的 `trip-data.json` 字段，HTML 始终由渲染器重建。修改前用 `node "<skill-root>/scripts/extract-trip-sections.js" <trip-data.json> --days=<N> --module=<模块>` 提取片段、改完用 `--apply` 写回（范围严格限定在命令声明的 day / module / item，原子替换）；AI 不通读全量 JSON：
 
+道路与探索数据可用 `--module=dayRoadRoutes,explorationSegments` 定向提取／写回；支持旧数据新增这两个可选数组，但仍执行完整内容校验，非法日编号、地点或道路几何不得落盘。它们不随单日items隐式重算；修改路线时按实际影响显式声明对应模块。
+
 ```bash
 node "<skill-root>/scripts/validate-trip-data.js" trip-data.json --stage=content --request=trip-request.json --brief=trip-brief.json --baseline=old-trip-data.json --allow-paths=<白名单>
 node "<skill-root>/scripts/render-guide.js" trip-data.json guide.html --request=trip-request.json --brief=trip-brief.json --baseline=old-trip-data.json --allow-paths=<白名单> --baseline-html=old-guide.html --frozen-modules=<冻结模块> [--freeze-action=fail|restore]

@@ -47,6 +47,8 @@ fs.readdirSync(path.join(scriptsRoot, "..", "assets", "data"))
   "test-hero-template.js",
   "test-segment-navigation.js",
   "test-route-summary-runtime.js",
+  "test-travel-mode.js",
+
   "test-data-pipeline.js",
   "test-contextual-explore.js",
   "test-nearby-map.js",
@@ -71,6 +73,9 @@ fs.readdirSync(path.join(scriptsRoot, "..", "assets", "data"))
   "test-public-deploy.js",
   "test-git-email-gate.js",
   "test-context-tools.js",
+  "test-research-store.js",
+  "test-supplementary-reading.js",
+  "test-preview-guide.js",
   "test-shared-rules.js",
   "test-review-regressions.js",
   "test-review-followups.js",

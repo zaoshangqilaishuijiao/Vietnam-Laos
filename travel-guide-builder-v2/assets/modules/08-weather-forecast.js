@@ -53,22 +53,12 @@ function initWeatherForecast(options = {}) {
   const daysUntilStart = tripStart ? Math.round((tripStart - today) / 86400000) : 0;
   const withinForecastWindow = !tripStart || (daysUntilStart <= 7 && (!tripEnd || today <= tripEnd));
   const enabled = options.enabled ?? (card.dataset.weatherEnabled === "true" || (card.dataset.weatherEnabled !== "false" && withinForecastWindow));
-  const tagHtml = (row) => {
-    const items = [];
-    if (row.rain >= 10 || row.hours >= 5 || /雷暴/.test(row.weather)) items.push(["室内备选", "risk"]);
-    else if (row.rain >= 3 || row.hours >= 2 || row.chance >= 50) items.push(["带雨具", "warn"]);
-    else items.push(["户外可行", "good"]);
-    if (row.gust >= 40) items.push(["船班核验", "risk"]);
-    if (row.feel >= 35 && row.uv >= 8) items.push(["高温防晒", "warn"]);
-    else if (row.uv >= 8) items.push(["防晒", "warn"]);
-    return items.map(([label, kind]) => '<span class="guide-weather-chip ' + kind + '">' + label + "</span>").join("");
-  };
   const render = (rowsByLocation) => {
     grid.innerHTML = locations.map((location) => {
       const rows = rowsForLocation(rowsByLocation, location);
       if (!rows) return '<article class="guide-weather-location is-error"><h4>' + escapeHtml(location.name) + "<small>" + escapeHtml(location.label || "") + '</small></h4><p class="guide-weather-location-error">该地点暂时获取失败，请稍后重试。</p></article>';
-      const body = rows.map((row) => '<tr><td>' + formatDate(row.date) + '</td><td class="weather">' + escapeHtml(row.weather) + "<br>" + format(row.min) + "–" + format(row.max) + '°C</td><td class="metric">最高约 ' + format(row.feel) + '°C</td><td class="metric">' + format(row.rain, 1) + " mm · " + format(row.hours) + " 小时<br>降雨 " + format(row.chance) + '%</td><td class="metric">' + format(row.gust) + " km/h · UV " + format(row.uv) + "<br>日落 " + escapeHtml(row.sunset || "待核验") + '</td><td class="key">' + tagHtml(row) + "</td></tr>").join("");
-      return '<article class="guide-weather-location"><h4>' + escapeHtml(location.name) + "<small>" + escapeHtml(location.label || "") + '</small></h4><div class="guide-weather-table-wrap"><table class="guide-weather-table"><thead><tr><th>日期</th><th>天气 / 温度</th><th>体感</th><th>雨量 / 雨时</th><th>阵风 / UV / 日落</th><th>关键提示</th></tr></thead><tbody>' + body + "</tbody></table></div></article>";
+      const body = rows.map((row) => '<tr><td>' + formatDate(row.date) + '</td><td class="weather">' + escapeHtml(row.weather) + "<br>" + format(row.min) + "–" + format(row.max) + '°C</td><td class="metric">最高约 ' + format(row.feel) + '°C</td><td class="metric">' + format(row.rain, 1) + " mm · " + format(row.hours) + " 小时<br>降雨 " + format(row.chance) + '%</td><td class="metric">' + format(row.gust) + " km/h · UV " + format(row.uv) + "<br>日落 " + escapeHtml(row.sunset || "—") + "</td></tr>").join("");
+      return '<article class="guide-weather-location"><h4>' + escapeHtml(location.name) + "<small>" + escapeHtml(location.label || "") + '</small></h4><div class="guide-weather-table-wrap"><table class="guide-weather-table"><thead><tr><th>日期</th><th>天气 / 温度</th><th>体感</th><th>雨量 / 雨时</th><th>阵风 / UV / 日落</th></tr></thead><tbody>' + body + "</tbody></table></div></article>";
     }).join("");
     if (easterEgg) easterEgg.hidden = !Object.values(rowsByLocation).some((rows) => rows?.some((row) => Number(row.chance) >= threshold));
     syncDayWeather(rowsByLocation);
@@ -126,11 +116,11 @@ function initWeatherForecast(options = {}) {
       render(rows);
       if (dataKind) { dataKind.textContent = failedCount ? "部分刷新成功" : "已刷新：Open‑Meteo 预报"; dataKind.classList.remove("is-waiting"); }
       status.textContent = failedCount
-        ? "已显示 " + successes.length + " 个地点，" + failedCount + " 个地点暂时获取失败；官方公告优先。"
-        : "天气已刷新。关键标签用于快速调整节奏；灾害预警、海况、道路及交通仍以官方公告为准。";
+        ? "已更新 " + successes.length + " 个地点，" + failedCount + " 个地点获取失败。"
+        : "天气已刷新。";
       if (updatedAt) updatedAt.innerHTML = "<strong>更新时间：</strong>" + new Intl.DateTimeFormat("zh-CN", { dateStyle: "short", timeStyle: "short" }).format(new Date());
     } catch (_error) {
-      status.textContent = global.location?.protocol === "file:" ? "本地 file:// 可能限制天气请求，请用本地 HTTP 打开后重试；正文不受影响。" : "暂无法获取天气，请稍后重试，并以官方公告为准。";
+      status.textContent = global.location?.protocol === "file:" ? "天气请求失败，请通过本地 HTTP 预览后重试。" : "天气请求失败，请重试。";
     } finally {
       refreshButton.disabled = false;
       card.classList.remove("is-loading");

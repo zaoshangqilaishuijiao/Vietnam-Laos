@@ -16,7 +16,7 @@ const titles = {
   recommendations: "当地体验",
   checklist: "出发前核验清单",
   bookings: "预定清单",
-  sources: "资料来源"
+  sources: "补充阅读"
 };
 
 function module(name, body = "") {
@@ -63,10 +63,10 @@ function run(name, html, expectedStatus, expectedText = "", args = ["--full", "-
 try {
   run("valid-xhs-in-group", page(), 0, "完整攻略");
   run("valid-split-xhs-groups", page({ xhsOutside: '<a href="https://www.xiaohongshu.com/explore/arrival">到达专项</a>' }), 0, "完整攻略");
-  run("reject-nine-even-with-shortfall", page({readCount:9,xhsInside:tenNotes.replace(/<a[^>]+>笔记<\/a>/, "")}), 1, "必须至少读取 10 篇");
-  run("reject-same-note-query-variants", page({readCount:10,xhsInside:Array.from({length:10},(_,i)=>`<a href="https://www.xiaohongshu.com/explore/same-note?x=${i}">笔记</a>`).join("")}), 1, "笔记 ID");
+  run("valid-curated-reading-not-a-research-quota", page({readCount:1,xhsInside:'<a href="https://www.xiaohongshu.com/explore/reading">完整参观指南</a>'}), 0);
+  run("reject-dangling-reading-reference", page({xhsInside:'<a href="#source-99">[99]</a>'}), 1, "缺少对应锚点");
   run("valid-structural-without-dates", page({ withDates: false }), 0, "完整攻略", ["--full"]);
-  run("reject-xhs-outside-group", page({ readCount: 1, xhsInside: "", xhsOutside: '<a href="https://www.xiaohongshu.com/explore/outside-group">笔记</a>' }), 1, "仅发现 0 个");
+  run("valid-no-public-xhs-quota", page({ readCount: 0, xhsInside: "" }), 0);
   run("reject-parallel-map-status", page({ parallelStatus: true }), 1, "不得保留平行的 #map-status");
   const flightShell = '<button data-flight-manage>录入凭证</button><div data-flight-list></div><div data-flight-editor><form data-flight-form><input data-flight-file><input data-flight-link></form></div><span data-flight-status></span><dialog data-flight-viewer></dialog><script type="application/json" data-flight-seed>[]<\/script>';
   run("valid-flight-records-empty", page({ arrivalBody: '<article data-flight-records>' + flightShell + '</article>' }), 0, "完整攻略");

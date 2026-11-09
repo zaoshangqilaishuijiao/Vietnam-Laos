@@ -114,6 +114,18 @@ const written = JSON.parse(fs.readFileSync(validGuideFile, "utf8"));
 assert.equal(written.transport[0].duration, transportPatch[0].duration);
 assert.equal(written.days.length, validGuide.days.length, "未触碰模块不得改变");
 assert.equal(written.days[0].theme, validGuide.days[0].theme, "未触碰字段不得改变");
+for(const module of ['dayRoadRoutes','explorationSegments']) {
+  fs.writeFileSync(patchFile,JSON.stringify({[module]:[]}));
+  const updated=spawnSync(process.execPath,[path.join(__dirname,'extract-trip-sections.js'),validGuideFile,`--module=${module}`,`--patch-file=${patchFile}`,'--apply'],{encoding:'utf8'});
+  assert.equal(updated.status,0,updated.stderr);
+  const extracted=spawnSync(process.execPath,[path.join(__dirname,'extract-trip-sections.js'),validGuideFile,`--module=${module}`],{encoding:'utf8'});
+  assert.equal(extracted.status,0,extracted.stderr);assert.deepEqual(JSON.parse(extracted.stdout)[module],[]);
+  fs.writeFileSync(patchFile,JSON.stringify({[module]:[{dayNumber:999}]}));
+  const before=fs.readFileSync(validGuideFile,'utf8');
+  const rejected=spawnSync(process.execPath,[path.join(__dirname,'extract-trip-sections.js'),validGuideFile,`--module=${module}`,`--patch-file=${patchFile}`,'--apply'],{encoding:'utf8'});
+  assert.notEqual(rejected.status,0,'road/exploration edits still require full content validation');
+  assert.equal(fs.readFileSync(validGuideFile,'utf8'),before,'invalid map data cannot overwrite the current guide');
+}
 
 /* ---------- publish-checklist：白名单推导、敏感扫描、新鲜度 ---------- */
 const { FORBIDDEN_PUBLISH_PATTERNS, parseArgs, deriveWhitelist, discoverDeploymentExtras, collectOutgoingCommits, findForbiddenOutgoingFiles, scanSecrets } = require("./publish-checklist.js");

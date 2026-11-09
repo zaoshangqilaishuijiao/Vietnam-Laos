@@ -9,6 +9,10 @@ function initExchange(options = {}) {
   const input = card.querySelector('[data-exchange-input], #exchange-amount');
   const lastUpdated = card.querySelector('[data-exchange-last-updated]');
   const localInput = card.querySelector('[data-exchange-local-input]');
+  const fromSelect = card.querySelector('[data-exchange-from]');
+  const toSelect = card.querySelector('[data-exchange-to]');
+  const swapButton = card.querySelector('[data-exchange-swap]');
+  const pairMode = !!(fromSelect && toSelect && localInput);
   const currencyButtons = [...card.querySelectorAll('[data-exchange-currency]')];
   const localLabel = card.querySelector('[data-exchange-local-label]');
   const rateBase = card.querySelector('[data-exchange-rate-base]');
@@ -47,23 +51,38 @@ function initExchange(options = {}) {
   const integerFormat = (value) => Number.isFinite(value) ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }).format(value) : '—';
   const stamp = (date) => new Intl.DateTimeFormat('zh-CN', { dateStyle: 'short', timeStyle: 'short' }).format(date);
   const validAmount = (field) => field && field.value !== '' && Number.isFinite(Number(field.value)) && Number(field.value) >= 0;
+  const cacheKey = `travel-guide-exchange:quotes:${base}`;
+  const amountValue = field => Number(String(field?.value || '').replace(/,/g, ''));
   const updateMnemonic = () => {
     if (!mnemonic) return;
     const quote = Number(rates?.[selectedCurrency]);
     if (!(quote > 0)) {
-      mnemonic.textContent = '刷新汇率后生成';
+      mnemonic.textContent = '';
+      const block = mnemonic.closest('.guide-quickcalc__mnemonic');
+      if (block) block.hidden = true;
       if (mnemonicExample) { mnemonicExample.textContent = ''; mnemonicExample.hidden = true; }
       return;
     }
-    let unit = 1;
-    while (unit / quote < 2 && unit < 1000000000) unit *= 10;
-    const factor = Math.round(unit / quote * 10) / 10;
-    const factorText = rateFormat(factor);
-    mnemonic.textContent = unit === 1 ? `当地金额 × ${factorText} ≈ 人民币` : `当地金额 ÷ ${integerFormat(unit)} × ${factorText} ≈ 人民币`;
-    if (mnemonicExample) {
-      mnemonicExample.textContent = unit > 1 ? `整${unit === 10000 ? '万' : integerFormat(unit)}标价：去掉 ${String(unit).length - 1} 个 0，再乘 ${factorText}` : '';
-      mnemonicExample.hidden = unit === 1;
+    // Choose one simple operation, optionally after removing trailing zeros.
+    // Hide when no integer multiplier/divisor is within 8% of the quote.
+    let best = null;
+    for (let zeros = 0; zeros <= 6; zeros++) {
+      for (const operation of ['divide', 'multiply']) {
+        const exact = operation === 'divide' ? quote / (10 ** zeros) : (10 ** zeros) / quote;
+        const factor = Math.round(exact);
+        if (factor < 1 || factor > 10) continue;
+        const ratio = operation === 'divide' ? quote / (10 ** zeros * factor) : quote * factor / (10 ** zeros);
+        const error = Math.abs(ratio - 1);
+        const cost = (zeros ? 1 : 0) + (factor === 1 ? 0 : 1);
+        if (error <= .08 && (!best || cost < best.cost || (cost === best.cost && error < best.error))) best = { zeros, operation, factor, error, cost };
+      }
     }
+    const block = mnemonic.closest('.guide-quickcalc__mnemonic');
+    if (block) block.hidden = !best;
+    if (!best) { mnemonic.textContent = ''; return; }
+    const action = best.factor === 1 ? '' : `${best.operation === 'divide' ? '除以' : '乘'} ${best.factor}`;
+    mnemonic.textContent = `${selectedCurrency} ${best.zeros ? `去掉 ${best.zeros} 个 0${action ? '，再' : ''}` : ''}${action || (best.zeros ? '' : '金额不变')}，约等于人民币`;
+    if (mnemonicExample) { mnemonicExample.textContent = ''; mnemonicExample.hidden = true; }
   };
   const updateRateLabels = () => {
     targets.forEach((currency) => {
@@ -72,6 +91,7 @@ function initExchange(options = {}) {
       const quote = rates?.[currency];
       node.textContent = Number.isFinite(quote) && quote > 0 ? `1 ${base} ≈ ${format(quote)} ${currency}` : '待刷新';
     });
+    if (pairMode) selectedCurrency = [fromSelect.value, toSelect.value].find(code => code !== base && code !== 'USD') || targets.find(code => code !== 'USD') || 'USD';
     if (rateBase) {
       const quote = Number(rates?.[selectedCurrency]);
       rateBase.textContent = quote > 0 ? `1 ${base} ≈ ${rateFormat(quote)} ${selectedCurrency}` : '刷新后获取参考汇率';
@@ -102,6 +122,13 @@ function initExchange(options = {}) {
       const value = Number(reverseAmount?.value);
       const quote = Number(rates?.[reverseCurrency?.value]);
       reverseResult.textContent = Number.isFinite(value) && value >= 0 && quote > 0 ? `约 ${format(value / quote)} CNY（中间价）` : '刷新汇率后换算成人民币';
+    }
+    if (pairMode) {
+      const n = amountValue(localInput);
+      const result = n / Number(rates?.[fromSelect.value]) * Number(rates?.[toSelect.value]);
+      input.value = String(localInput.value).trim() && Number.isFinite(n) && n >= 0 && Number.isFinite(result) ? new Intl.NumberFormat('zh-CN', { maximumFractionDigits: ['VND', 'LAK', 'JPY', 'KRW', 'IDR'].includes(toSelect.value) ? 0 : 2 }).format(result) : '';
+      input.style.fontSize = input.value.length > 13 ? '23px' : '';
+      return;
     }
     if (localInput) {
       const quote = Number(rates?.[selectedCurrency]);
@@ -140,7 +167,7 @@ function initExchange(options = {}) {
       if (!response.ok) throw new Error(`exchange request failed: ${response.status}`);
       const payload = await response.json();
       const nextRates = readRates(payload);
-      if (!nextRates || targets.some((currency) => !Number.isFinite(nextRates[currency]) || nextRates[currency] <= 0)) throw new Error('exchange response incomplete');
+      if (!nextRates || [...targets, ...(pairMode ? ['USD', base] : [])].some((currency) => !Number.isFinite(nextRates[currency]) || nextRates[currency] <= 0)) throw new Error('exchange response incomplete');
       return { rates: nextRates, date: payload.time_last_update_utc || payload.date || '', endpoint };
     } finally {
       if (timer) global.clearTimeout(timer);
@@ -159,8 +186,11 @@ function initExchange(options = {}) {
       rates = result.rates;
       updateRateLabels();
       updateResults();
+      if (pairMode) {
+        try { global.localStorage.setItem(cacheKey, JSON.stringify({ rates, date: result.date || new Date().toISOString() })); } catch (_) { /* Storage may be unavailable; in-memory conversion remains usable. */ }
+      }
       if (lastUpdated) {
-        lastUpdated.textContent = `更新时间：${stamp(new Date())}${result.date ? `；数据日期：${result.date}` : ''}`;
+        lastUpdated.textContent = pairMode ? `汇率日期：${result.date || stamp(new Date())}` : `更新时间：${stamp(new Date())}${result.date ? `；数据日期：${result.date}` : ''}`;
         lastUpdated.hidden = false;
       }
       writeStatus('已更新；数据仅作中间价参考。', !localInput);
@@ -196,7 +226,7 @@ function initExchange(options = {}) {
     root.dispatchEvent(new View.CustomEvent('guide:floating-actions-close'));
     if (typeof dialog?.showModal === 'function' && !dialog.open) dialog.showModal();
     else dialog?.setAttribute('open', '');
-    localInput?.focus({ preventScroll: true });
+    (pairMode ? dialogClose : localInput)?.focus({ preventScroll: true });
   };
   const onDialogCloseClick = () => {
     if (typeof dialog?.close === 'function' && dialog.open) dialog.close();
@@ -204,6 +234,23 @@ function initExchange(options = {}) {
   };
   const onDialogBackdropClick = (event) => { if (event.target === dialog) onDialogCloseClick(); };
   const onDialogClosed = () => root.querySelector('[data-guide-floating-toggle]')?.focus({ preventScroll: true });
+  let previousFrom = fromSelect?.value, previousTo = toSelect?.value;
+  const rememberPair = () => { previousFrom = fromSelect?.value; previousTo = toSelect?.value; updateRateLabels(); updateResults(); };
+  const onFromChange = () => { if (fromSelect.value === toSelect.value) toSelect.value = previousFrom; rememberPair(); };
+  const onToChange = () => { if (toSelect.value === fromSelect.value) fromSelect.value = previousTo; rememberPair(); };
+  const onSwap = () => { [fromSelect.value, toSelect.value] = [toSelect.value, fromSelect.value]; rememberPair(); };
+  fromSelect?.addEventListener('change', onFromChange);
+  toSelect?.addEventListener('change', onToChange);
+  swapButton?.addEventListener('click', onSwap);
+  if (pairMode) {
+    try {
+      const cached = JSON.parse(global.localStorage.getItem(cacheKey));
+      if (cached?.rates?.[base] === 1 && [...targets, 'USD'].every(code => Number.isFinite(cached.rates[code]) && cached.rates[code] > 0)) {
+        rates = cached.rates;
+        if (lastUpdated) { lastUpdated.textContent = `汇率日期：${cached.date}`; lastUpdated.hidden = false; }
+      }
+    } catch (_) { /* An invalid cache is ignored; manual refresh remains available. */ }
+  }
   input.addEventListener('input', onInput);
   localInput?.addEventListener('input', onLocalInput);
   currencyButtons.forEach((button) => button.addEventListener('click', onCurrencyClick));
@@ -223,6 +270,9 @@ function initExchange(options = {}) {
     refresh,
     update: updateResults,
     destroy() {
+      fromSelect?.removeEventListener('change', onFromChange);
+      toSelect?.removeEventListener('change', onToChange);
+      swapButton?.removeEventListener('click', onSwap);
       input.removeEventListener('input', onInput);
       localInput?.removeEventListener('input', onLocalInput);
       currencyButtons.forEach((button) => button.removeEventListener('click', onCurrencyClick));

@@ -141,6 +141,7 @@
           "endTime": "12:00",
           "timeText": "",
           "transportMode": "步行",
+          "navigationOptions": [{ "mode": "walking", "durationMinutes": 15, "recommended": true }],
           "travelMinutes": 15,
           "stayMinutes": 120,
           "breakGroundRoute": false,
@@ -202,7 +203,7 @@
   },
   "sources": [
     { "id": 1, "type": "official", "scope": "general", "title": "示例：目的地旅游局官网", "url": "https://example.com/official", "topics": ["签证"], "cities": ["巴黎"], "verificationStatus": "示例：2026-08 已核验" },
-    { "id": 2, "type": "xiaohongshu", "scope": "general", "title": "示例：实际阅读的地点与商品笔记", "author": "示例：原帖作者", "url": "https://www.xiaohongshu.com/explore/replace-note-id", "topics": ["餐饮", "购物"], "cities": ["巴黎"], "verificationStatus": "待实际阅读" }
+    { "id": 2, "type": "xiaohongshu", "scope": "general", "title": "示例：实际阅读的地点与商品笔记", "author": "示例：原帖作者", "url": "https://www.xiaohongshu.com/explore/replace-note-id", "topics": ["餐饮", "购物"], "cities": ["巴黎"], "verificationStatus": "待实际阅读", "reading": { "topic": "美食购物", "title": "示例：老街店铺与手工艺品辨认图解", "value": "示例：正文之外的分店对照、摊区照片和工艺细节；实际无补充价值则删除整个reading字段" } }
   ],
   "sourceIndex": [
     { "sourceId": 1, "title": "示例：目的地旅游局官网", "cities": ["巴黎"], "tags": ["签证", "入境", "证件"], "searchHints": ["入境材料", "签证规则"] }
