@@ -65,6 +65,10 @@ function copyReferencedAssets(source, sourcePath, outputPath) {
   const sourceDir = path.dirname(sourcePath);
   const outputDir = path.dirname(outputPath);
   const references = collectLocalAssetReferences(source);
+  const guideManifest = [...references].find(relative => /^guide-[a-f0-9]{16}\.webmanifest$/.test(relative));
+  if (guideManifest && path.basename(sourcePath) !== path.basename(outputPath)) {
+    throw new Error("支持桌面入口的攻略在构建部署产物时须保留源 HTML 文件名。");
+  }
   for (const relative of references) {
     const input = path.resolve(sourceDir, relative);
     const expectedPrefix = `${fs.realpathSync(sourceDir)}${path.sep}`;
@@ -72,6 +76,12 @@ function copyReferencedAssets(source, sourcePath, outputPath) {
       throw new Error(`HTML 引用的本地资源不存在：${relative}`);
     }
     if (!fs.realpathSync(input).startsWith(expectedPrefix)) throw new Error(`HTML 引用的本地资源通过符号链接越界：${relative}`);
+    if (relative === guideManifest) {
+      const manifest = JSON.parse(fs.readFileSync(input, "utf8"));
+      if (manifest.start_url !== `./${encodeURIComponent(path.basename(outputPath))}`) {
+        throw new Error("桌面入口的启动页与部署 HTML 不一致，请按正式文件名重新渲染。");
+      }
+    }
     const destination = path.resolve(outputDir, relative);
     const outputPrefix = `${path.resolve(outputDir)}${path.sep}`;
     if (!destination.startsWith(outputPrefix)) throw new Error(`部署资源路径越界：${relative}`);

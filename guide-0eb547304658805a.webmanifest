@@ -1,0 +1,21 @@
+{
+  "id": "./?guide=95dba074b981e55c7035c2bf",
+  "name": "2026 越南·老挝十二日旅行攻略",
+  "short_name": "越南、老挝攻略",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "assets/guide-95dba074b981e55c7035c2bf-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/guide-95dba074b981e55c7035c2bf-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
