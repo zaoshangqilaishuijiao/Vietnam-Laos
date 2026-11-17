@@ -1,0 +1,23 @@
+{
+  "id": "./?guide=e84d8507189e8d97d96b91c4",
+  "name": "曼谷神奇半马｜看展、老城与河岸街巷三日",
+  "short_name": "泰国曼谷攻略",
+  "lang": "zh-CN",
+  "start_url": "./bangkok.html",
+  "scope": "./",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "assets/guide-e84d8507189e8d97d96b91c4-9549fde05532-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/guide-e84d8507189e8d97d96b91c4-49cfd45ca644-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

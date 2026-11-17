@@ -81,6 +81,9 @@ function copyReferencedAssets(source, sourcePath, outputPath) {
       if (manifest.start_url !== `./${encodeURIComponent(path.basename(outputPath))}`) {
         throw new Error("桌面入口的启动页与部署 HTML 不一致，请按正式文件名重新渲染。");
       }
+      if (!Array.isArray(manifest.icons) || !manifest.icons.length || manifest.icons.some(icon => !references.has(icon?.src))) {
+        throw new Error("桌面图标须由攻略 HTML 引用并纳入部署资源。");
+      }
     }
     const destination = path.resolve(outputDir, relative);
     const outputPrefix = `${path.resolve(outputDir)}${path.sep}`;
