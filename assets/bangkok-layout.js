@@ -103,7 +103,7 @@
    const condition=text.split('·')[0].trim();
    const icon=/雷/.test(condition)?'⛈️':/雪/.test(condition)?'🌨️':/雨/.test(condition)?'🌧️':/多云/.test(condition)?'⛅':/阴/.test(condition)?'☁️':/晴/.test(condition)?'☀️':/雾/.test(condition)?'🌫️':'';
    target.hidden=!weatherAvailable();
-   target.textContent=temperature?`${icon||'🌡️'} ${temperature[1]}–${temperature[2]}°`:'🌡️';
+   target.textContent=temperature?`${icon||'🌡️'} ${temperature[1]}–${temperature[2]}°`:'天气';
    target.setAttribute('aria-label',temperature?`${condition} ${temperature[1]}至${temperature[2]}摄氏度`:'刷新当天气温与天气');
   });
   if(!bubble.hidden){refreshAction.disabled=Boolean(weatherRefresh?.disabled);refreshAction.textContent=weatherCard?.classList.contains('is-loading')?'正在刷新…':'刷新天气';bubble.querySelector('p').textContent=weatherStatus?.textContent||'';}

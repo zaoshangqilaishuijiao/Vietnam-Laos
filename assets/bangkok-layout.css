@@ -427,6 +427,29 @@ body[data-bk-sidebar-collapsed=true] .guide-floating-toggle::after{content:'☷'
 .visual-bk .travel-stop .guide-personal-notes:has([data-personal-note-list]:empty):has([data-personal-note-editor][hidden]){display:none}
 .visual-bk .bk-image-card > .bk-image-card-body{padding:8px 12px}
 
+/* Weather becomes available at T-7; its button must not inherit date-pill paint. */
+#itinerary .ov-tab-shell > button.ov-tab-weather{
+ min-width:0;min-height:44px;height:44px;padding:0 4px;margin:0;
+ border:0;border-radius:0;background:transparent;box-shadow:none;
+ color:var(--guide-action);font-size:12px;line-height:1.2;
+}
+#itinerary .ov-tab-shell:has([aria-selected=true]) > button.ov-tab-weather{color:var(--guide-on-dark)}
+.visual-bk[data-travel-view=travel] #itinerary .ov-tab-shell:has(.ov-tab-weather:not([hidden])) > [data-day-tab]{
+ height:72px;min-height:72px;padding:7px 4px 44px;display:flex;align-items:flex-start;justify-content:center;
+}
+.visual-bk[data-travel-view=travel] #itinerary .ov-tab-shell > button.ov-tab-weather{left:0;right:0;bottom:0;width:100%;font-size:11px}
+/* The approved side panel already provides the day's itinerary on mobile. */
+.visual-bk #itinerary .travel-mobile-directory-button{display:none}
+.visual-bk #itinerary .ov-tab-date,.visual-bk #itinerary .ov-tab-date small{white-space:nowrap;flex-shrink:0}
+/* Separate hit areas: clicking the date must never hit its weather sibling. */
+.visual-bk[data-travel-view=travel] #itinerary .ov-tab-shell:has(.ov-tab-weather:not([hidden])){
+ height:88px;border:1px solid var(--guide-line);border-radius:20px;background:var(--guide-surface);overflow:hidden;
+}
+.visual-bk[data-travel-view=travel] #itinerary .ov-tab-shell:has([aria-selected=true]):has(.ov-tab-weather:not([hidden])){background:var(--guide-action);border-color:var(--guide-action)}
+.visual-bk[data-travel-view=travel] #itinerary .ov-tab-shell:has(.ov-tab-weather:not([hidden])) > [data-day-tab]{
+ height:44px;min-height:44px;padding:6px 2px;margin:0;align-items:center;border:0;border-radius:0;background:transparent;box-shadow:none;
+}
+
 /* Native flight records keep their existing import and local editing controller. */
 .flight-records-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
 .flight-records-list > .flight-ticket-card { min-width:0; margin:0; }
