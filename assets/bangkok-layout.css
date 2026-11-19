@@ -1,0 +1,434 @@
+/* Isolated preview layer; shared production assets remain unchanged. */
+.visual-bk {color:var(--guide-on-light);background:var(--guide-page);--bk-panel:clamp(360px,31.5vw,450px)}
+.visual-bk main{width:min(1440px,100%);padding-inline:clamp(14px,3vw,42px)}
+.visual-bk .guide-section{border:0;box-shadow:none;background:transparent}
+.visual-bk #itinerary > h2{font-size:clamp(28px,3vw,42px);margin-bottom:4px}
+.bk-preview-label{color:var(--guide-on-light-muted);font-size:14px;margin:0 0 22px}
+.visual-bk:not([data-travel-view=travel]) #itinerary-explore{display:none}
+.visual-bk .day.card{border:0;box-shadow:none;padding:0;background:transparent}
+.bk-original-header{display:none!important}
+.bk-overview{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);border:1px solid var(--guide-line);border-radius:24px;overflow:clip;background:var(--guide-surface);margin-top:20px}
+.bk-day-cover{margin:0;min-width:0;display:flex;flex-direction:column;background:var(--guide-page-soft);position:sticky;top:80px;align-self:start}
+.bk-day-cover > button{display:block;position:static;border:0;padding:0;background:none;width:100%;height:min(82vh,960px);cursor:zoom-in}
+.bk-day-cover img{width:100%;height:100%;object-fit:cover;object-position:52% 45%;display:block}
+.bk-day-cover figcaption{padding:10px 14px;display:flex;gap:12px;justify-content:space-between;font-size:12px;color:var(--guide-on-light-muted);background:var(--guide-page-soft)}
+.visual-bk .day:before{display:none}
+.bk-day-content{padding:clamp(20px,3vw,40px);min-width:0}
+.bk-day-eyebrow{color:var(--guide-action);letter-spacing:.12em;font-size:13px;font-weight:750;display:flex;gap:18px;flex-wrap:wrap}
+.bk-day-eyebrow span{color:var(--guide-on-light-muted);letter-spacing:.04em}
+.bk-day-heading{font:700 clamp(26px,2.5vw,36px)/1.3 Georgia,'Songti SC',serif!important;margin:12px 0 20px!important}
+.bk-day-tools{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 20px}
+.bk-day-tools .day-overview-actions{display:flex;gap:8px}
+.bk-day-tools :is(.day-weather-badge,.day-intensity,[data-show-day-map]){margin:0;min-height:44px;padding:8px 10px;border:1px solid var(--guide-line);border-radius:9px;font-size:12px;display:inline-flex;gap:4px;align-items:center;background:transparent}
+.bk-day-tools .day-intensity strong{font-size:12px}
+.bk-agenda{list-style:none;padding:0;margin:22px 0 0}
+.bk-agenda-stop{display:grid;grid-template-columns:62px minmax(0,1fr);gap:14px;padding:16px 0;border-top:1px solid var(--guide-line)}
+.bk-agenda-stop time{font-size:14px;font-weight:750;color:var(--guide-action);font-variant-numeric:tabular-nums;padding-top:3px}
+.bk-agenda-stop h4{margin:0 0 5px;font-size:18px;line-height:1.4}
+.bk-agenda-stop p{font-size:15px;line-height:1.65;margin:0;color:var(--guide-on-light-muted)}
+.bk-agenda-actions{display:flex;gap:0 15px;align-items:center;flex-wrap:wrap;font-size:13px}
+.bk-agenda-actions :is(a,button,summary){display:inline-flex;align-items:center;min-height:44px;border:0;background:none;padding:0;color:var(--guide-action);font:inherit;cursor:pointer}
+.bk-agenda-actions details{width:100%}.bk-agenda-actions details[open]{padding-bottom:12px}.bk-agenda-actions summary:before{content:'▸';margin-right:5px}.bk-agenda-actions details[open] summary:before{content:'▾'}
+.bk-agenda-actions details :is(p,li){font-size:14px}
+.bk-agenda-transfer{margin-left:76px;display:flex;gap:6px;overflow-x:auto;padding:2px 0 9px}
+.bk-agenda-transfer > *{flex:none}
+.visual-bk .travel-stop{background:var(--guide-surface);border-radius:18px;border:1px solid var(--guide-line);margin:0 0 8px;overflow:hidden;padding:10px 12px}
+.visual-bk .travel-stop header small{font-size:12px;letter-spacing:.04em;color:var(--guide-action);font-weight:700}
+.visual-bk .travel-stop h4{font-size:18px;margin:2px 0 6px}
+.visual-bk .travel-stop-copy > p{font-size:14px;line-height:1.55;color:var(--guide-on-light-muted);margin:4px 0}
+.bk-place-gallery .travel-photo-track{aspect-ratio:4/3;max-height:360px;border-radius:10px;overflow-x:auto;overflow-y:hidden;display:flex;scroll-snap-type:x mandatory;scrollbar-width:none}
+.bk-place-gallery figure{margin:0;flex:0 0 100%;min-width:100%;scroll-snap-align:start;height:100%}
+.bk-place-gallery [data-preview-image]{display:block;border:0;padding:0;width:100%;height:100%;background:var(--guide-page-soft);cursor:zoom-in}
+.visual-bk .bk-place-gallery .travel-photo-track figure img{display:block;width:100%;height:100%;max-height:none;min-height:100%;object-fit:cover}
+.bk-place-gallery{position:relative}
+.bk-photo-credit{position:absolute;right:0;bottom:0;display:block;text-align:right;font-size:12px;line-height:1.4;max-width:100%;padding:12px 8px 5px;background:linear-gradient(transparent,rgb(0 0 0/.62));color:white}
+.bk-photo-credit a{color:inherit}
+.bk-place-gallery:has(.travel-photo-controls) .bk-photo-credit{bottom:44px}
+.visual-bk .travel-photo-controls{justify-content:center;font-size:13px;gap:12px}
+.visual-bk .travel-photo-controls button{min-height:44px}
+.visual-bk .travel-transfer{padding:0 12px 8px;gap:6px;flex-wrap:nowrap;overflow-x:auto}
+.visual-bk [data-travel-day] .travel-stop-directory{display:none}
+.visual-bk .travel-day-layout{display:block}
+.visual-bk .travel-photo-reference img{object-fit:contain}
+.visual-bk [data-search-advanced]{background:var(--guide-page-soft);color:var(--guide-action);border:1px solid var(--guide-line)}
+.bk-ticket{padding:18px 20px;border:1px solid var(--guide-line);border-radius:20px;background:var(--guide-surface);margin:12px 0;box-shadow:0 4px 12px rgb(0 0 0/.04)}
+.bk-ticket-date{color:var(--guide-on-light-muted);font-size:12px;margin-bottom:14px}
+.bk-ticket-route{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px}.bk-ticket-route > div:last-child{text-align:right}
+.bk-ticket-route b{display:block;font-size:28px;font-variant-numeric:tabular-nums;line-height:1.3}.bk-ticket-route span{font-size:13px}.bk-ticket-arrow{color:var(--guide-action);font-size:20px}
+.bk-ticket-foot{border-top:1px dashed var(--guide-line);padding-top:12px;margin-top:16px;display:flex;justify-content:space-between;gap:12px;font-size:13px}
+.bk-ticket-section{max-width:820px;margin:24px 0}.bk-ticket-extra{font-size:12px;color:var(--guide-on-light-muted);margin:10px 0 0}.bk-connection{padding:2px 20px;margin:0;font-size:13px;color:var(--guide-on-light-muted)}
+/* Adapted from TravelMap's panel/glass mixins and PanelFrame; colors inherit guide themes.
+ * https://github.com/thisispivi/TravelMap/blob/main/packages/ui/src/styles/_mixins.scss */
+.visual-bk{--bk-glass:color-mix(in srgb,var(--guide-surface) 58%,transparent);--bk-panel-glass:color-mix(in srgb,var(--guide-page) 32%,transparent);--bk-glass-border:rgb(255 255 255/.7);--bk-glass-shadow:0 12px 32px rgb(0 0 0/.12),0 2px 6px rgb(0 0 0/.06)}
+.bk-trip-panel{display:contents}
+.bk-panel-title,.bk-panel-controls,.bk-map-legend{display:none}
+.visual-bk:not([data-travel-view=travel]) .bk-panel-header [data-context-location-status]{display:none}
+.visual-bk[data-travel-view=travel] .bk-panel-title{display:block;padding:4px 12px 6px}
+.bk-panel-title small{display:block;font-size:12px;line-height:1.4;color:var(--guide-on-light-muted)}
+.bk-panel-title h3{margin:2px 0 0;font-size:20px;line-height:1.3;font-family:inherit}
+.visual-bk[data-travel-view=travel] .bk-panel-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 12px 8px}
+.visual-bk[data-travel-view=travel] .bk-panel-controls .nearby-day-bar{position:static;margin:0;display:flex;pointer-events:auto;gap:0}
+.bk-panel-controls .nearby-day-legend{display:none}
+.visual-bk[data-travel-view=travel] .bk-panel-controls .nearby-day-bar > *{padding:0;border:0;background:none;box-shadow:none}
+.bk-panel-controls .nearby-day-switch{gap:8px;font-size:14px;min-height:44px}
+.bk-panel-controls button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;white-space:nowrap;padding:7px 12px;border-radius:999px;border:1px solid var(--guide-line);background:var(--bk-glass);color:var(--guide-action);font-family:inherit;font-size:13px;font-weight:600;line-height:1.4;cursor:pointer}
+.bk-panel-controls button:before{content:'◎';font-size:18px}
+.bk-panel-header [data-context-location-status]:empty{display:none}
+.bk-panel-header [data-context-location-status]{padding:0 18px;font-size:12px;margin:0 0 8px}
+.bk-panel-header{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 44px;column-gap:4px;align-items:start;padding-right:8px}
+.bk-panel-header > .itinerary-date-bar{grid-column:1;grid-row:1;min-width:0;width:100%;max-width:100%;margin:0}
+.bk-panel-header > :is(.bk-panel-title,.bk-nearby-view-heading,.bk-panel-controls,[data-context-location-status]){grid-column:1 / -1}
+.bk-panel-collapse{position:static;grid-column:2;grid-row:1;align-self:center;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;background:transparent;color:var(--guide-on-light-muted);font:400 25px/1 system-ui;cursor:pointer;border-radius:50%}
+.bk-panel-collapse:hover{background:var(--bk-glass)}
+.bk-panel-collapse:focus-visible{outline:2px solid var(--guide-action);outline-offset:-5px}
+.bk-nearby-view-heading{margin:0;padding:4px 12px 6px;font-size:20px;font-weight:750;line-height:1.4}
+.bk-nearby-view-heading[hidden],.bk-panel-title[hidden],[data-bk-panel-restore][hidden]{display:none!important}
+.visual-bk:not([data-travel-view=travel]) .bk-panel-collapse{display:none}
+.visual-bk[data-travel-view=travel][data-bk-nearby=true] .bk-trip-panel [data-day-panel]{display:none}
+.visual-bk[data-travel-view=travel][data-bk-nearby=true] [data-travel-directory-open]{display:none}
+.visual-bk[data-travel-view=travel][data-bk-nearby=true] .nearby-day-card{background:var(--guide-surface);border-radius:18px;box-shadow:0 1px 2px rgb(0 0 0/.08)}
+.visual-bk[data-travel-view=travel] [data-guide-floating-tools]{right:76px!important;bottom:max(24px,env(safe-area-inset-bottom))!important}
+.visual-bk[data-travel-view=travel][data-bk-sidebar-collapsed=true] .bk-trip-panel{display:none!important}
+body[data-bk-sidebar-collapsed=true] .guide-floating-toggle::after{content:'☷';position:absolute;top:2px;right:0;width:22px;height:22px;display:grid;place-items:center;border-radius:50%;background:var(--guide-action);color:var(--guide-on-dark);font:700 13px/1 system-ui;border:2px solid var(--guide-on-dark)}
+@media(max-width:959px){.visual-bk[data-travel-view=travel] [data-guide-floating-tools]{right:96px!important;bottom:max(24px,env(safe-area-inset-bottom))!important}}
+.visual-bk:not([data-travel-view=travel]) #nearby-day-panels{display:none}
+.visual-bk[data-travel-view=travel] .bk-trip-panel #nearby-day-panels{position:static;max-height:none;overflow:visible;margin:0}
+.bk-trip-panel .nearby-day-list{grid-template-columns:minmax(0,1fr)}
+.visual-bk[data-travel-view=travel] .bk-trip-panel .nearby-day-panel{padding:0;background:transparent;box-shadow:none;margin:0 0 16px;border-radius:0}
+@media(min-width:960px){
+ body.visual-bk[data-travel-view=travel]{overflow:hidden}
+ .visual-bk[data-travel-view=travel] main{width:100%;max-width:none;padding:0}
+ .visual-bk[data-travel-view=travel] #itinerary{height:100dvh;max-width:none;padding:14px 18px;position:relative;margin:0}
+ .visual-bk[data-travel-view=travel] .bk-trip-panel{position:absolute;inset:18px auto 18px 18px;width:var(--bk-panel);z-index:20;display:flex;flex-direction:column;overflow:hidden;min-height:0;border:1px solid var(--bk-glass-border);border-radius:32px;background:var(--bk-panel-glass);-webkit-backdrop-filter:blur(28px) saturate(1.6);backdrop-filter:blur(28px) saturate(1.6);box-shadow:var(--bk-glass-shadow)}
+ .visual-bk[data-travel-view=travel] .bk-panel-header{flex:none;padding-top:4px;border-bottom:1px solid var(--guide-line)}
+ .visual-bk[data-travel-view=travel] .itinerary-date-bar{height:auto;min-height:44px;position:static;width:100%;max-width:none;border:0;border-radius:0;padding:4px 0 4px 12px;background:none;box-shadow:none;z-index:auto;margin:0}
+ .visual-bk[data-travel-view=travel] .bk-panel-header .itinerary-day-tabs{margin:0;padding:0;min-height:44px}
+ .visual-bk[data-travel-view=travel] .travel-day-title{display:none}
+ .visual-bk[data-travel-view=travel] .itinerary-day-panels{position:relative;flex:1;min-height:0;width:100%;padding:8px 10px 16px;overflow:auto;overscroll-behavior:contain;border:0;border-radius:0;background:none;box-shadow:none;scrollbar-width:thin}
+ .visual-bk[data-travel-view=travel] .bk-trip-panel .day.card{background:transparent;border:0;box-shadow:none}
+ .visual-bk[data-travel-view=travel] .travel-stop{background:var(--guide-surface);box-shadow:0 1px 2px rgb(0 0 0/.08);border-color:color-mix(in srgb,var(--guide-line) 65%,transparent)}
+ .visual-bk[data-travel-view=travel] #itinerary-explore{position:absolute;inset:0;margin:0;display:block;overflow:hidden;border:0;border-radius:0;background:var(--guide-page);padding:0;z-index:1}
+ .visual-bk[data-travel-view=travel] #itinerary-explore .route-map-wrap{position:absolute;inset:0;min-height:0;border-radius:0}
+ .visual-bk[data-travel-view=travel] #route-map{height:100%!important;min-height:0!important}
+ .visual-bk[data-travel-view=travel] .itinerary-explore-head{display:none}
+ .visual-bk[data-travel-view=travel] .itinerary-explore-head h3{margin:0;font-size:17px}
+ .visual-bk[data-travel-view=travel] .nearby-day-bar{position:absolute;left:calc(var(--bk-panel) + 58px);right:20px;top:100px;z-index:3;gap:12px;pointer-events:none}
+ .visual-bk[data-travel-view=travel] .nearby-day-bar > *{pointer-events:auto;padding:5px 12px;border:1px solid var(--guide-line);border-radius:14px;background:var(--guide-surface);box-shadow:0 4px 12px rgb(0 0 0/.06)}
+ .visual-bk[data-travel-view=travel] #nearby-day-panels{position:absolute;left:calc(var(--bk-panel) + 58px);right:20px;bottom:56px;z-index:4;max-height:32vh;overflow:auto;overscroll-behavior:contain}
+ .visual-bk[data-travel-view=travel] .nearby-day-panel{margin:0;padding:12px;border-radius:18px;background:var(--guide-surface);box-shadow:0 8px 28px rgb(0 0 0/.12)}
+ .visual-bk[data-travel-view=travel] .bk-map-legend{position:absolute;right:22px;top:20px;z-index:4;display:block;padding:8px 13px;border:1px solid var(--bk-glass-border);border-radius:999px;background:var(--bk-glass);-webkit-backdrop-filter:blur(20px) saturate(1.4);backdrop-filter:blur(20px) saturate(1.4);box-shadow:0 8px 24px rgb(0 0 0/.1)}
+ .visual-bk[data-travel-view=travel] .bk-preview-label{display:none}
+ .visual-bk[data-travel-view=travel] .travel-stop-actions{gap:0 10px;flex-wrap:nowrap;overflow-x:auto}
+ .visual-bk[data-travel-view=travel] [data-guide-floating-tools]{z-index:2400}
+}
+@media(max-width:959px){
+ .bk-overview{grid-template-columns:1fr;border-radius:18px}
+ .bk-day-cover{position:static}
+ .bk-day-cover > button{position:static;height:auto;aspect-ratio:4/3}
+ .bk-day-cover figcaption{position:static}
+ .bk-day-content{padding:22px 18px}
+ .bk-agenda-stop{grid-template-columns:52px minmax(0,1fr);gap:10px}
+ .bk-agenda-transfer{margin-left:62px}
+ .bk-day-tools{gap:6px}.bk-day-tools .day-overview-actions{gap:6px}
+ .bk-day-tools .day-overview-actions{width:auto;flex:0 1 auto}
+ .visual-bk[data-travel-view=travel] main{padding-inline:12px}
+ .visual-bk[data-travel-view=travel] #itinerary{display:flex;flex-direction:column}
+ .visual-bk[data-travel-view=travel] .bk-panel-header{order:1;background:var(--guide-page);border-radius:18px;margin-bottom:12px}
+ .visual-bk[data-travel-view=travel] .itinerary-day-panels{order:3}
+ .visual-bk[data-travel-view=travel] #itinerary-explore{order:2}
+ .visual-bk[data-travel-view=travel] .itinerary-explore-head{display:none}
+ .visual-bk[data-travel-view=travel] .travel-day-title{display:none}
+ .visual-bk[data-travel-view=travel] .bk-preview-label{display:none}
+ .visual-bk[data-travel-view=travel] .bk-panel-header .itinerary-date-bar{position:static}
+ .visual-bk[data-travel-view=travel] #itinerary-explore{border-radius:18px;margin-bottom:18px}
+ .visual-bk[data-travel-view=travel] .travel-day-title{font-size:17px}
+ .visual-bk[data-travel-view=travel] .route-map,.visual-bk[data-travel-view=travel] .route-map-wrap{min-height:330px}
+ .visual-bk .travel-stop-actions{flex-wrap:nowrap}
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.visual-bk[data-travel-view=travel] .bk-trip-panel,.visual-bk[data-travel-view=travel] .bk-map-legend{background:var(--guide-page)}}
+@media(prefers-reduced-transparency:reduce){.visual-bk[data-travel-view=travel] .bk-trip-panel,.visual-bk[data-travel-view=travel] .bk-map-legend{background:var(--guide-page);backdrop-filter:none;-webkit-backdrop-filter:none}}
+@media(prefers-reduced-motion:reduce){.visual-bk *{scroll-behavior:auto!important}}
+
+/* A chronological dashed rail joins stops; navigation capsules sit on its connecting legs. */
+.bk-route-entry{position:relative;display:grid;grid-template-columns:26px minmax(0,1fr);column-gap:8px;padding-bottom:8px;--bk-incoming-height:0px}
+.bk-route-entry.has-transfer{--bk-incoming-height:48px}
+.bk-route-entry:before{content:'';position:absolute;left:12px;top:0;bottom:0;border-left:2px dashed color-mix(in srgb,var(--guide-action) 28%,transparent);pointer-events:none}
+.bk-route-entry:first-child:before{top:28px}
+.bk-route-entry:last-child:before{bottom:calc(100% - var(--bk-incoming-height) - 28px)}
+.bk-route-node{position:relative;z-index:1;grid-column:1;grid-row:2;align-self:start;margin-top:15px;display:grid;place-items:center;width:26px;height:26px;border:2px solid var(--guide-surface);border-radius:50%;background:var(--guide-primary-100);color:var(--guide-action);font-size:11px;font-weight:750;line-height:1;font-variant-numeric:tabular-nums;box-shadow:0 0 0 1px color-mix(in srgb,var(--guide-action) 16%,transparent)}
+.bk-route-entry:has(.is-travel-selected) .bk-route-node{background:var(--guide-action);color:var(--guide-on-dark)}
+.visual-bk .bk-route-entry > .travel-stop{grid-column:2;grid-row:2;min-width:0;margin:0}
+.visual-bk .bk-route-entry > .travel-transfer{grid-column:2;grid-row:1;min-width:0;min-height:48px;padding:0 0 4px;margin:0;align-items:center;gap:6px;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain}
+.bk-route-entry > .travel-transfer > *{flex:none}
+@media(max-width:959px){.bk-route-entry{grid-template-columns:22px minmax(0,1fr);column-gap:6px}.bk-route-entry:before{left:10px}.bk-route-node{width:22px;height:22px;margin-top:17px;font-size:10px}}
+
+/* Overview only: a horizontal day strip above one shared map and one compact day plan. */
+.ov-workspace{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.85fr);gap:20px;align-items:stretch;margin-top:18px}
+.ov-map-slot{min-width:0;position:relative}
+.ov-brief{min-width:0;border:1px solid var(--guide-line);border-radius:22px;background:var(--guide-surface);overflow:hidden}
+.ov-day[hidden]{display:none}
+.ov-day{display:flex;flex-direction:column;height:620px}
+.ov-brief-head{padding:22px 24px 16px;border-bottom:1px solid var(--guide-line)}
+.ov-eyebrow{font-size:12px;letter-spacing:.12em;font-weight:750;color:var(--guide-action)}
+.ov-brief-head h3{margin:8px 0 10px;font-size:24px;line-height:1.35;letter-spacing:-.02em;font-family:Georgia,'Songti SC',serif}
+.ov-brief-head p{margin:0;font-size:14px;line-height:1.65;color:var(--guide-on-light-muted)}
+.ov-day-meta{display:flex;gap:8px 14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--guide-on-light-muted)}
+.ov-stop-list{list-style:none;margin:0;padding:10px 24px;overflow-y:auto;overscroll-behavior:contain;flex:1;min-height:0;scrollbar-width:thin}
+.ov-stop-list li{display:grid;grid-template-columns:54px minmax(0,1fr);gap:10px;align-items:center;min-height:39px;padding:4px 0;border-bottom:1px solid color-mix(in srgb,var(--guide-line) 60%,transparent)}
+.ov-stop-list li:last-child{border:0}
+.ov-stop-list time{font-size:12px;font-weight:700;color:var(--guide-on-light-muted);font-variant-numeric:tabular-nums}
+.ov-stop-list :is(button,strong){font-family:inherit;font-size:14px;font-weight:600;line-height:1.5;overflow-wrap:anywhere}
+.ov-stop-list button{display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;min-height:36px;padding:3px 0;border:0;background:none;color:var(--guide-on-light);cursor:pointer}
+.ov-stop-list button span{color:var(--guide-action);font-size:17px;font-weight:400;flex:none}
+.ov-stop-list li.is-active button,.ov-stop-list li.is-active time{color:var(--guide-action)}
+.ov-stop-list li.is-active{background:var(--guide-page-soft);border-radius:7px}
+.ov-brief-foot{padding:12px 24px;border-top:1px solid var(--guide-line);font-size:12px;color:var(--guide-on-light-muted)}
+.visual-bk:not([data-travel-view=travel]) .bk-trip-panel{display:none}
+.visual-bk:not([data-travel-view=travel]) .ov-map-slot #itinerary-explore{display:flex!important;flex-direction:column;height:620px;margin:0;padding:0;border:1px solid var(--guide-line);border-radius:22px;overflow:hidden;background:var(--guide-surface)}
+.visual-bk:not([data-travel-view=travel]) .ov-map-slot .route-map-wrap{flex:1;min-height:0}
+.visual-bk:not([data-travel-view=travel]) .ov-map-slot #route-map{height:100%!important;min-height:0!important}
+.visual-bk:not([data-travel-view=travel]) .ov-map-slot .itinerary-explore-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;gap:8px}
+.visual-bk:not([data-travel-view=travel]) .ov-map-slot .itinerary-explore-head h3{margin:0;font-weight:700;line-height:1.5;font-family:inherit;font-size:14px}
+.visual-bk:not([data-travel-view=travel]) .ov-map-slot [data-use-current-location]{display:none}
+.visual-bk:not([data-travel-view=travel]) .ov-map-slot .bk-map-legend{display:block;padding:0 16px 8px}
+.visual-bk:not([data-travel-view=travel]) .ov-date-slot .itinerary-date-bar{position:static;display:block;margin:0;padding:0;background:none}
+.visual-bk:not([data-travel-view=travel]) .ov-date-slot .itinerary-day-tabs{display:flex;gap:12px;margin:0;padding:6px 1px 12px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:thin;cursor:grab}
+.visual-bk:not([data-travel-view=travel]) .ov-date-slot [data-day-tab]{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:7px;min-height:116px;flex:0 0 240px;scroll-snap-align:center;padding:17px 20px;border:1px solid var(--guide-line);border-radius:16px;background:var(--guide-surface);color:var(--guide-on-light);box-shadow:none;text-align:left}
+.visual-bk:not([data-travel-view=travel]) .ov-date-slot [data-day-tab][aria-selected=true]{background:var(--guide-action);border-color:var(--guide-action);color:var(--guide-on-dark);box-shadow:0 6px 18px color-mix(in srgb,var(--guide-action) 18%,transparent)}
+.ov-tab-date{display:flex;gap:10px;align-items:baseline;font-size:24px;line-height:1.2;font-variant-numeric:tabular-nums}
+.ov-tab-date small{font-size:12px;font-weight:500;opacity:.8}
+.ov-tab-title{font-size:14px;font-weight:600}
+.ov-tab-number{position:absolute;right:14px;top:17px;font-size:10px;letter-spacing:.08em;font-weight:700;opacity:.65}
+.visual-bk[data-travel-view=travel] .ov-workspace,.visual-bk[data-travel-view=travel] .ov-date-slot{display:none}
+.visual-bk[data-travel-view=travel] .ov-tab-title,.visual-bk[data-travel-view=travel] .ov-tab-number{display:none}
+.visual-bk[data-travel-view=travel] .ov-tab-date{font-size:14px;gap:4px}
+.visual-bk[data-travel-view=travel] .ov-tab-date small{font-size:11px}
+.visual-bk[data-travel-view=travel] .bk-panel-header .itinerary-day-tabs{gap:5px}
+.visual-bk[data-travel-view=travel] .bk-panel-header [data-day-tab]{min-width:0;padding:6px}
+@media(max-width:800px){
+ .ov-workspace{grid-template-columns:minmax(0,1fr);gap:14px;margin-top:12px}
+ .visual-bk:not([data-travel-view=travel]) .ov-map-slot #itinerary-explore{height:340px;border-radius:18px}
+ .ov-day{height:auto;max-height:none}
+ .ov-stop-list{max-height:none;overflow:visible;padding:8px 18px}
+ .ov-brief-head{padding:20px 18px 14px}
+ .ov-brief-head h3{font-size:22px}
+ .ov-brief-foot{padding-inline:18px}
+ .ov-stop-list li{min-height:44px}
+ .ov-stop-list button{min-height:44px}
+ .visual-bk:not([data-travel-view=travel]) .ov-date-slot [data-day-tab]{flex-basis:215px;min-height:108px}
+}
+@media(hover:hover){.ov-stop-list button:hover{text-decoration:underline}.ov-date-slot [data-day-tab]:hover{border-color:var(--guide-action)}}
+
+/* One glass treatment across overview shells; match the outing sidebar tokens. */
+.visual-bk:not([data-travel-view=travel]){
+ background:
+  radial-gradient(ellipse at 8% 25%,color-mix(in srgb,var(--guide-action) 12%,transparent),transparent 52%),
+  radial-gradient(ellipse at 92% 65%,color-mix(in srgb,var(--guide-primary-100) 48%,transparent),transparent 55%),
+  var(--guide-page);
+ background-attachment:fixed;
+}
+.visual-bk:not([data-travel-view=travel]) :where(.ov-brief,.ov-date-slot [data-day-tab],.ov-map-slot #itinerary-explore,.airport-kit-card,.arrival-app-card,.arrival-form-guide,.bk-ticket,.flight-records,.booking-ledger-card,.recommendation-item,.local-knowledge-card){
+ background:var(--bk-panel-glass);
+ border-color:var(--bk-glass-border);
+ -webkit-backdrop-filter:blur(28px) saturate(1.6);
+ backdrop-filter:blur(28px) saturate(1.6);
+ box-shadow:var(--bk-glass-shadow);
+}
+.visual-bk:not([data-travel-view=travel]) .ov-date-slot [data-day-tab][aria-selected=true]{
+ background:color-mix(in srgb,var(--guide-action) 82%,transparent);
+ border-color:color-mix(in srgb,var(--guide-on-dark) 55%,transparent);
+}
+.visual-bk:not([data-travel-view=travel]) .ov-map-slot .itinerary-explore-head,
+.visual-bk:not([data-travel-view=travel]) .ov-map-slot .bk-map-legend{background:transparent}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+ .visual-bk:not([data-travel-view=travel]) :where(.ov-brief,.ov-date-slot [data-day-tab],.ov-map-slot #itinerary-explore,.airport-kit-card,.arrival-app-card,.arrival-form-guide,.bk-ticket,.flight-records,.booking-ledger-card,.recommendation-item,.local-knowledge-card){background:var(--guide-surface)}
+}
+@media(prefers-reduced-transparency:reduce){
+ .visual-bk:not([data-travel-view=travel]) :where(.ov-brief,.ov-date-slot [data-day-tab],.ov-map-slot #itinerary-explore,.airport-kit-card,.arrival-app-card,.arrival-form-guide,.bk-ticket,.flight-records,.booking-ledger-card,.recommendation-item,.local-knowledge-card){background:var(--guide-surface);backdrop-filter:none;-webkit-backdrop-filter:none}
+ .visual-bk:not([data-travel-view=travel]) .ov-date-slot [data-day-tab][aria-selected=true]{background:var(--guide-action)}
+}
+
+/* Shared transparent glass on every overview module, using the outing panel recipe. */
+.visual-bk:not([data-travel-view=travel]) :where(main > [data-guide-module],main > .guide-section,[data-guide-module="recommendations"]){
+ background:var(--bk-panel-glass);
+ border:1px solid var(--bk-glass-border);
+ border-radius:28px;
+ padding:clamp(18px,2.4vw,32px);
+ -webkit-backdrop-filter:blur(28px) saturate(1.6);
+ backdrop-filter:blur(28px) saturate(1.6);
+ box-shadow:var(--bk-glass-shadow);
+}
+.visual-bk:not([data-travel-view=travel]) :where(.arrival-list > li,.departure-list > li,.guide-weather-card,.checklist-container,.budget-table-wrap,.transport-table-wrap){
+ background:var(--bk-panel-glass);
+ -webkit-backdrop-filter:blur(28px) saturate(1.6);
+ backdrop-filter:blur(28px) saturate(1.6);
+ border-color:var(--bk-glass-border);
+}
+.ov-tab-weather{position:absolute;right:16px;bottom:17px;font-size:13px;font-weight:600;line-height:1.4;white-space:nowrap;font-variant-numeric:tabular-nums}
+.visual-bk:not([data-travel-view=travel]) .ov-tab-title{max-width:58%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.visual-bk[data-travel-view=travel] .ov-tab-weather{position:static;font-size:11px;line-height:1.2}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+ .visual-bk:not([data-travel-view=travel]) :where(main > [data-guide-module],main > .guide-section,[data-guide-module="recommendations"]){background:var(--guide-surface)}
+}
+@media(prefers-reduced-transparency:reduce){
+ .visual-bk:not([data-travel-view=travel]) :where(main > [data-guide-module],main > .guide-section,[data-guide-module="recommendations"]){background:var(--guide-surface);backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+
+.visual-bk[data-travel-view=travel] .bk-trip-panel :is(.travel-stop,.nearby-day-card){
+ background:var(--bk-panel-glass);
+ border-color:var(--bk-glass-border);
+ -webkit-backdrop-filter:blur(28px) saturate(1.6);
+ backdrop-filter:blur(28px) saturate(1.6);
+}
+
+/* Glass shells need explicit separation; the original flat sections had no margin. */
+.visual-bk:not([data-travel-view=travel]) main > .guide-section + .guide-section{margin-top:32px}
+.visual-bk:not([data-travel-view=travel]) [data-guide-module="recommendations"]{margin-top:24px}
+@media(max-width:800px){
+ .visual-bk:not([data-travel-view=travel]) main > .guide-section + .guide-section{margin-top:28px}
+ .visual-bk:not([data-travel-view=travel]) .ov-workspace{gap:20px}
+ .visual-bk:not([data-travel-view=travel]) main > .guide-section{border-radius:22px;scroll-margin-top:84px}
+}
+
+/* Keep module grouping flat; only the section and actual content cards are surfaces. */
+.visual-bk:not([data-travel-view=travel]) #recommendations{margin-top:32px}
+.visual-bk:not([data-travel-view=travel]) #recommendations :is(.recommendation-modules,.recommendation-module,.recommendation-list){background:transparent;border:0;box-shadow:none;backdrop-filter:none;padding-inline:0}
+.visual-bk:not([data-travel-view=travel]) .recommendation-item{background:var(--bk-panel-glass);box-shadow:0 2px 8px rgb(0 0 0/.06);border-color:var(--bk-glass-border)}
+@media(max-width:800px){.visual-bk:not([data-travel-view=travel]) #recommendations{margin-top:28px}}
+
+/* A single centered page grid aligns navigation, section shells and inner cards. */
+.visual-bk{--bk-page-gutter:clamp(14px,3vw,42px)}
+.visual-bk:not([data-travel-view=travel]) main{width:min(1440px,100%);margin-inline:auto;padding-inline:var(--bk-page-gutter)}
+.visual-bk:not([data-travel-view=travel]) .quick-nav{width:calc(min(1440px,100%) - 2 * var(--bk-page-gutter));margin-inline:auto;max-width:none;gap:8px}
+.visual-bk .bk-ticket-section{max-width:none;width:100%;min-width:0}
+.visual-bk .bk-ticket{min-width:0;width:100%}
+@media(min-width:960px){
+ .visual-bk:not([data-travel-view=travel]) .quick-nav a{flex:1 0 auto;text-align:center;justify-content:center}
+ .visual-bk .bk-ticket-chain{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px;align-items:stretch}
+ .visual-bk .bk-ticket-chain > .bk-ticket{margin:0;height:100%;padding:20px 22px}
+ .visual-bk .bk-ticket-chain > .bk-ticket:first-of-type{grid-column:1;grid-row:1}
+ .visual-bk .bk-ticket-chain > .bk-ticket:nth-of-type(2){grid-column:2;grid-row:1}
+ .visual-bk .bk-ticket-chain > .bk-connection{grid-column:1/-1;grid-row:2;padding:0 4px;margin:0}
+ .visual-bk .bk-ticket-route{gap:12px}
+ .visual-bk .bk-ticket-route span{font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+ .visual-bk .bk-ticket-route b{font-size:32px}
+ .visual-bk .bk-ticket-foot{gap:10px;align-items:flex-start;font-size:13px}
+ .visual-bk .bk-ticket-foot strong{max-width:62%;text-align:right;overflow-wrap:anywhere}
+}
+@media(max-width:959px){
+ .visual-bk:not([data-travel-view=travel]) .quick-nav a{flex:none}
+}
+
+/* APP rows share one rounded surface; square child backgrounds must not cover its corners. */
+.visual-bk:not([data-travel-view=travel]) .arrival-app-list{
+ border:1px solid var(--bk-glass-border);border-radius:18px;overflow:hidden;
+ background:var(--bk-panel-glass);-webkit-backdrop-filter:blur(28px) saturate(1.6);backdrop-filter:blur(28px) saturate(1.6);
+ box-shadow:0 2px 8px rgb(0 0 0/.06);
+}
+.visual-bk:not([data-travel-view=travel]) .arrival-app-card{background:transparent;box-shadow:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+.visual-bk .arrival-app-card:first-child{border-top-left-radius:17px;border-top-right-radius:17px}
+.visual-bk .arrival-app-card:last-child{border-bottom-left-radius:17px;border-bottom-right-radius:17px}
+.visual-bk .arrival-app-copy:focus-visible{outline-offset:-2px}
+
+/* Joined media cards: one outer radius, full-bleed top image, contiguous text body. */
+.visual-bk .bk-image-card,
+.visual-bk[data-travel-view=travel] .bk-trip-panel .bk-image-card{display:flex;flex-direction:column;padding:0;gap:0;overflow:hidden;border-radius:18px}
+.visual-bk .bk-image-card > :is(figure,[data-travel-gallery],.nearby-day-photo){display:block;flex:none;width:100%;min-width:0;margin:0;padding:0;border:0;border-radius:0;background:transparent}
+.visual-bk .bk-image-card > figure{position:relative}
+.visual-bk .bk-image-card > figure > button,
+.visual-bk .bk-image-card > .nearby-day-photo{display:block;width:100%;padding:0;border:0;border-radius:0;overflow:hidden;cursor:zoom-in;aspect-ratio:4/3}
+.visual-bk .bk-image-card > figure img,
+.visual-bk .bk-image-card > .nearby-day-photo img{display:block;width:100%;height:100%;max-height:none;object-fit:cover;border-radius:0}
+.visual-bk .bk-image-card > figure figcaption{position:absolute;bottom:0;left:0;right:0;margin:0;padding:20px 14px 10px;background:linear-gradient(transparent,rgb(0 0 0/.68));font-size:12px;color:white;line-height:1.5;pointer-events:none}
+.visual-bk .bk-image-card > figure figcaption a{color:white;pointer-events:auto}
+.visual-bk .bk-image-card > [data-travel-gallery] .travel-photo-track{margin:0;border-radius:0;aspect-ratio:4/3;max-height:360px}
+.visual-bk .bk-image-card > [data-travel-gallery] :is(figure,button,img){border-radius:0}
+.visual-bk .bk-image-card > .bk-image-card-body{padding:10px 12px;min-width:0;width:100%}
+.visual-bk .bk-image-card-body > :first-child{margin-top:0}
+.visual-bk .bk-image-card-body > :last-child{margin-bottom:0}
+.visual-bk .bk-image-card-body > .travel-stop-copy{padding:0}
+.visual-bk .bk-image-card-body > header h4{margin-top:2px}
+.visual-bk .nearby-day-card.bk-image-card > .bk-image-card-body > div{padding:0;min-width:0}
+.visual-bk .bk-image-card .travel-photo-controls{margin:0;padding:0 8px;background:transparent}
+
+.ov-tab-shell{position:relative;flex:0 0 240px;min-width:0;scroll-snap-align:center}
+.visual-bk:not([data-travel-view=travel]) .ov-date-slot .ov-tab-shell > [data-day-tab]{width:100%;min-width:0}
+.visual-bk .ov-tab-shell > .ov-tab-weather{position:absolute;right:9px;bottom:7px;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:4px 7px;border:0;border-radius:10px;background:transparent;color:var(--guide-action);cursor:pointer;font-weight:600;line-height:1.3;font-family:inherit;font-size:13px}
+.visual-bk .ov-tab-shell:has([aria-selected=true]) > .ov-tab-weather{color:var(--guide-on-dark)}
+.visual-bk .ov-tab-weather[hidden]{display:none!important}
+.visual-bk[data-travel-view=travel] .ov-tab-shell{flex:1;min-width:0}
+.visual-bk[data-travel-view=travel] .ov-tab-shell > [data-day-tab]{width:100%}
+.visual-bk[data-travel-view=travel] .ov-tab-shell:has(.ov-tab-weather:not([hidden])) > [data-day-tab]{padding-bottom:38px}
+.visual-bk[data-travel-view=travel] .ov-tab-shell > .ov-tab-weather{left:0;right:0;bottom:0;width:100%;font-size:11px}
+.bk-weather-popover{position:fixed;z-index:1200;width:220px;padding:10px;border:1px solid var(--bk-glass-border);border-radius:14px;background:color-mix(in srgb,var(--guide-surface) 88%,transparent);backdrop-filter:blur(28px) saturate(1.6);box-shadow:var(--bk-glass-shadow);color:var(--guide-on-light)}
+.bk-weather-popover[hidden]{display:none}
+.bk-weather-popover button{width:100%;min-height:44px;border:0;border-radius:9px;background:var(--guide-action);color:var(--guide-on-dark);font:inherit;cursor:pointer}
+.bk-weather-popover button:disabled{opacity:.65;cursor:wait}
+.bk-weather-popover p{margin:7px 3px 0;font-size:12px;line-height:1.5;color:var(--guide-on-light-muted)}
+.bk-weather-popover p:empty{display:none}
+@media(max-width:800px){.ov-tab-shell{flex-basis:215px}}
+
+/* Mobile budget: seven compact disclosure rows instead of stacked label/value cards. */
+.bk-budget-mobile{display:none}
+@media(max-width:800px){
+ .visual-bk #budget .bk-budget-table,.visual-bk #budget > ul{display:none}
+ .bk-budget-mobile{display:block;border:1px solid var(--bk-glass-border);border-radius:18px;overflow:hidden;background:var(--bk-panel-glass);backdrop-filter:blur(28px) saturate(1.6);box-shadow:0 2px 8px rgb(0 0 0/.06)}
+ .bk-budget-total{padding:16px 14px;border-bottom:1px solid var(--guide-line)}
+ .bk-budget-total > div{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+ .bk-budget-total span{font-size:14px;font-weight:650}
+ .bk-budget-total strong{font-size:20px;color:var(--guide-action);font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:-.03em}
+ .bk-budget-total p{margin:7px 0 0;font-size:11px;line-height:1.6;color:var(--guide-on-light-muted)}
+ .bk-budget-row{margin:0;padding:0;border:0;border-bottom:1px solid color-mix(in srgb,var(--guide-line) 65%,transparent);background:transparent;border-radius:0;box-shadow:none}
+ .bk-budget-row:last-child{border-bottom:0}
+ .bk-budget-row summary{display:grid;grid-template-columns:minmax(0,1fr) auto 12px;align-items:center;gap:8px;min-height:52px;padding:10px 14px;cursor:pointer;list-style:none;font-size:13px;line-height:1.45;color:var(--guide-on-light)}
+ .bk-budget-row summary::-webkit-details-marker{display:none}
+ .bk-budget-row summary::before{display:none}
+ .bk-budget-row summary strong{white-space:nowrap;font-size:13px;font-weight:650;font-variant-numeric:tabular-nums}
+ .bk-budget-chevron::after{content:'▸';color:var(--guide-on-light-muted)}
+ .bk-budget-row[open] .bk-budget-chevron::after{content:'▾'}
+ .bk-budget-basis{padding:0 14px 14px;font-size:13px;line-height:1.65;color:var(--guide-on-light-muted)}
+ .bk-budget-basis p{margin:0 0 5px}
+ .bk-budget-basis p:last-child{margin-bottom:0}
+ .bk-budget-row summary:focus-visible{outline:2px solid var(--guide-action);outline-offset:-3px;border-radius:8px}
+}
+
+.visual-bk .bk-image-card-body .travel-stop-copy > p:first-child{margin-top:4px}
+
+/* Place titles reuse the existing map action; remaining actions share one row. */
+.visual-bk .travel-stop header h4 > .bk-place-name{
+ display:inline-flex;align-items:center;max-width:100%;min-height:44px;
+ margin:-5px 0;padding:0;border:0;background:none;color:inherit;
+ font:inherit;line-height:inherit;white-space:normal;text-align:left;
+ cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px
+}
+.visual-bk .travel-stop header h4 > .bk-place-name:focus-visible{outline:2px solid var(--guide-action);outline-offset:2px}
+.visual-bk .travel-stop-actions{display:flex;align-items:center;flex-wrap:nowrap;gap:0 10px;overflow-x:auto;overscroll-behavior-x:contain}
+.visual-bk .travel-stop-actions > *{flex:none;white-space:nowrap}
+.visual-bk .travel-stop-actions .slot-links{display:flex;align-items:center;gap:10px;margin:0;flex-wrap:nowrap}
+
+/* Curated photos retain their whole composition without a thumbnail strip. */
+.visual-bk .travel-photo-reference{margin:6px 0}
+.visual-bk .travel-photo-reference .travel-photo-track{align-items:flex-start;background:none}
+.visual-bk .travel-photo-reference .travel-photo-track figure{margin:0;align-self:flex-start}
+.visual-bk .travel-photo-reference .travel-photo-track [data-preview-image]{height:auto;min-height:0;background:none}
+.visual-bk .travel-photo-reference .travel-photo-track figure img{display:block;width:100%;height:auto;min-height:0;max-height:360px;object-fit:contain;background:none}
+.visual-bk .travel-photo-reference figcaption{padding:6px 0 0}
+.visual-bk .travel-photo-reference figcaption strong{font-size:13px;line-height:1.4}
+.visual-bk .travel-photo-reference .travel-photo-hint{margin:3px 0;font-size:13px;line-height:1.5}
+.visual-bk .travel-photo-reference .bk-photo-author{display:block;margin:0;font-size:12px;line-height:1.4}
+.visual-bk .travel-photo-reference .bk-photo-author a{display:inline-flex;align-items:center;min-height:44px;color:var(--guide-action);font:inherit}
+.visual-bk .travel-photo-reference .travel-photo-controls{padding:0;margin:0;gap:8px}
+
+/* Compact stop cards after removing duplicate destination navigation. */
+.visual-bk .travel-stop{margin-bottom:6px;padding:8px 12px}
+.visual-bk .travel-stop header h4{margin:2px 0 3px}
+.visual-bk .travel-stop-copy > p{margin:3px 0}
+.visual-bk .travel-stop-actions{margin-top:2px;margin-bottom:0}
+.visual-bk .travel-stop .guide-personal-notes:has([data-personal-note-list]:empty):has([data-personal-note-editor][hidden]){display:none}
+.visual-bk .bk-image-card > .bk-image-card-body{padding:8px 12px}
+
+/* Native flight records keep their existing import and local editing controller. */
+.flight-records-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
+.flight-records-list > .flight-ticket-card { min-width:0; margin:0; }
+.bk-receipts > summary { min-height:44px; align-content:center; cursor:pointer; color:var(--guide-action); }
+@media(max-width:650px){ .flight-records-list { grid-template-columns:minmax(0,1fr); } }
