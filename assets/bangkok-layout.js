@@ -10,6 +10,7 @@
  const offsets={planned:0,nearby:0};
  let showingNearby=false;
  let sidebarOffset=0;
+ let mobilePageOffset=null;
  const syncNearbyView=()=>{
   const next=Boolean(nearbySwitch?.checked);
   if(next!==showingNearby){offsets[showingNearby?'nearby':'planned']=panelViewport.scrollTop;panelViewport.scrollTop=offsets[next?'nearby':'planned'];}
@@ -19,7 +20,7 @@
   shell.querySelector('.bk-nearby-view-heading').hidden=!next;
  };
  const setCollapsed=value=>{
-  if(value)sidebarOffset=panelViewport.scrollTop;
+  if(value){sidebarOffset=panelViewport.scrollTop;if(!desktop())mobilePageOffset={x:window.scrollX,y:window.scrollY};}
   document.body.dataset.bkSidebarCollapsed=String(value);
   restoreButton.hidden=!value;
   cow.setAttribute('aria-label',value?'展开行程面板':'打开快捷工具');
@@ -27,7 +28,10 @@
   cow.setAttribute('aria-controls',value?'bk-trip-panel':'guide-floating-actions');
   document.dispatchEvent(new CustomEvent('guide:floating-actions-close'));
   if(value)cow.focus({preventScroll:true});
-  else {panelViewport.scrollTop=sidebarOffset;collapseButton.focus({preventScroll:true});}
+  else {
+   panelViewport.scrollTop=sidebarOffset;collapseButton.focus({preventScroll:true});
+   if(mobilePageOffset){const saved=mobilePageOffset;mobilePageOffset=null;if(!desktop())requestAnimationFrame(()=>window.scrollTo({left:saved.x,top:saved.y,behavior:'instant'}));}
+  }
   document.dispatchEvent(new CustomEvent('guide:bk-sidebar'));
   refit();
  };
@@ -78,7 +82,7 @@
  const dateSlot=root.querySelector('.ov-date-slot'),mapSlot=root.querySelector('.ov-map-slot');
  const activeDay=()=>Number(root.querySelector('[data-day-tab][aria-selected=true]')?.dataset.dayTab||1);
  const outing=()=>document.body.dataset.travelView==='travel';
- const labels={1:'抵达与暹罗',2:'半马与老城',3:'宅院与河岸'};
+ const labels={1:'抵达与On Nut',2:'半马与老城',3:'宅院与河岸'};
  const weatherEngine=document.querySelector('[data-bk-weather-engine]');
  const weatherRefresh=weatherEngine?.querySelector('[data-weather-refresh]');
  const weatherStatus=weatherEngine?.querySelector('[data-weather-status]');

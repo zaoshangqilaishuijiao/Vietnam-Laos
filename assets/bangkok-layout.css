@@ -455,3 +455,12 @@ body[data-bk-sidebar-collapsed=true] .guide-floating-toggle::after{content:'☷'
 .flight-records-list > .flight-ticket-card { min-width:0; margin:0; }
 .bk-receipts > summary { min-height:44px; align-content:center; cursor:pointer; color:var(--guide-action); }
 @media(max-width:650px){ .flight-records-list { grid-template-columns:minmax(0,1fr); } }
+
+/* Mobile map focus: collapsing the itinerary gives its viewport to the map. */
+@media(max-width:959px){
+ body.visual-bk[data-travel-view=travel][data-bk-sidebar-collapsed=true]{overflow:hidden}
+ body.visual-bk[data-travel-view=travel][data-bk-sidebar-collapsed=true] #itinerary{position:fixed;inset:0;z-index:2000;display:block;width:auto;max-width:none;height:100dvh;min-height:0;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;overflow:hidden;background:var(--guide-page)}
+ body.visual-bk[data-travel-view=travel][data-bk-sidebar-collapsed=true] #itinerary-explore{position:absolute;inset:0;display:block;width:100%;height:100%;min-height:0;margin:0;padding:0;border:0;border-radius:0;overflow:hidden}
+ body.visual-bk[data-travel-view=travel][data-bk-sidebar-collapsed=true] #itinerary-explore .route-map-wrap{position:absolute;inset:0;width:100%;height:100%;min-height:0;margin:0;padding:0;border:0;border-radius:0}
+ body.visual-bk[data-travel-view=travel][data-bk-sidebar-collapsed=true] #route-map{width:100%;height:100%!important;min-height:0!important;border-radius:0}
+}
