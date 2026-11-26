@@ -90,11 +90,12 @@
   return (start-today)/86400000<=7&&today<=end;
  };
  const bubble=document.createElement('div');bubble.id='bk-weather-popover';bubble.className='bk-weather-popover';bubble.hidden=true;
- bubble.setAttribute('role','dialog');bubble.setAttribute('aria-label','刷新天气');
- bubble.innerHTML='<button type="button" data-bk-refresh-weather>刷新天气</button><p role="status" aria-live="polite"></p>';
+ bubble.setAttribute('role','status');bubble.setAttribute('aria-live','polite');
+ bubble.innerHTML='<p></p>';
  document.body.append(bubble);let weatherTrigger=null;
  const closeWeather=(focus=false)=>{bubble.hidden=true;weatherTrigger?.setAttribute('aria-expanded','false');if(focus)weatherTrigger?.focus({preventScroll:true});};
- const refreshAction=bubble.querySelector('button');
+ let feedbackTimer;
+ const showFeedback=(message)=>{clearTimeout(feedbackTimer);bubble.querySelector('p').textContent=message;bubble.hidden=false;if(weatherTrigger){const r=weatherTrigger.getBoundingClientRect();bubble.style.left=Math.max(12,Math.min(innerWidth-232,r.right-220))+'px';const h=bubble.getBoundingClientRect().height;bubble.style.top=(r.bottom+h+12>innerHeight?Math.max(12,r.top-h-8):r.bottom+8)+'px';}};
  const syncWeather=()=>{
   root.querySelectorAll('[data-tab-weather]').forEach(target=>{
    const source=root.querySelector(`[data-day-panel="${target.dataset.tabWeather}"] [data-day-weather]`);
@@ -106,21 +107,18 @@
    target.textContent=temperature?`${icon||'🌡️'} ${temperature[1]}–${temperature[2]}°`:'—°';
    target.setAttribute('aria-label',temperature?`${condition} ${temperature[1]}至${temperature[2]}摄氏度`:'刷新当天气温与天气');
   });
-  if(!bubble.hidden){refreshAction.disabled=Boolean(weatherRefresh?.disabled);refreshAction.textContent=weatherCard?.classList.contains('is-loading')?'正在刷新…':'刷新天气';bubble.querySelector('p').textContent=weatherStatus?.textContent||'';}
+  root.querySelectorAll('[data-tab-weather]').forEach(target=>{target.disabled=Boolean(weatherRefresh?.disabled);target.setAttribute('aria-busy',String(Boolean(weatherCard?.classList.contains('is-loading'))));});
  };
  document.addEventListener('click',event=>{
   const trigger=event.target.closest('[data-tab-weather]');
   if(trigger&&!trigger.hidden){
    event.preventDefault();event.stopPropagation();
-   if(weatherTrigger===trigger&&!bubble.hidden){closeWeather();return;}
-   closeWeather();weatherTrigger=trigger;bubble.hidden=false;trigger.setAttribute('aria-expanded','true');syncWeather();
-   const r=trigger.getBoundingClientRect();bubble.style.left=Math.max(12,Math.min(innerWidth-232,r.right-220))+'px';
-   const h=bubble.getBoundingClientRect().height;bubble.style.top=(r.bottom+h+12>innerHeight?Math.max(12,r.top-h-8):r.bottom+8)+'px';
-   refreshAction.focus({preventScroll:true});return;
+   if(!weatherRefresh||weatherRefresh.disabled)return;
+   closeWeather();weatherTrigger=trigger;trigger.setAttribute('aria-expanded','true');showFeedback('正在刷新天气…');weatherRefresh.click();syncWeather();return;
   }
   if(!bubble.contains(event.target))closeWeather();
  });
- refreshAction.addEventListener('click',()=>{if(weatherAvailable()&&weatherRefresh&&!weatherRefresh.disabled){weatherRefresh.click();syncWeather();}});
+ document.addEventListener('guide:weather-refreshed',event=>{syncWeather();if(!weatherTrigger)return;const day=root.querySelector(`[data-day-panel="${weatherTrigger.dataset.tabWeather}"]`);const fresh=event.detail?.summary?.[day?.dataset.weatherPlaceId]?.[day?.dataset.itineraryDate];showFeedback(fresh?'天气刷新成功':'天气刷新未成功');feedbackTimer=setTimeout(()=>closeWeather(),3000);});
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!bubble.hidden){event.preventDefault();closeWeather(true);}});
  window.addEventListener('resize',()=>closeWeather());
  if(weatherEngine)new MutationObserver(syncWeather).observe(weatherEngine,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['disabled','class']});
